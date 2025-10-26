@@ -49,19 +49,19 @@ func PostHandler(w http.ResponseWriter, r *http.Request, cfg *config.Config, sho
 	}
 
 	// Парсим URL из строки (фактически проверяем, что это действительно URL)
-	validUrl, err := url.ParseRequestURI(trimBody)
+	validURL, err := url.ParseRequestURI(trimBody)
 
-	if err != nil || validUrl.Scheme == "" {
+	if err != nil || validURL.Scheme == "" {
 		http.Error(w, "Invalid url", http.StatusBadRequest)
 		return
 	}
 
 	// Если ссылка уже есть в originalToShort, то возвращаем короткую ссылку
-	if key := originalToShort[validUrl.String()]; key != "" {
-		shortUrl := cfg.ServerAddress + "/" + key
+	if key := originalToShort[validURL.String()]; key != "" {
+		shortURL := cfg.BaseURL + "/" + key
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(shortUrl))
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(shortURL))
 		return
 	}
 
@@ -72,13 +72,13 @@ func PostHandler(w http.ResponseWriter, r *http.Request, cfg *config.Config, sho
 	}
 
 	// Сохраняем короткую ссылку в карте
-	validStringUrl := validUrl.String()
-	shortToOriginal[key] = validStringUrl
-	originalToShort[validStringUrl] = key
+	validStringURL := validURL.String()
+	shortToOriginal[key] = validStringURL
+	originalToShort[validStringURL] = key
 
 	// Формируем ответ
-	shortUrl := cfg.ServerAddress + "/" + key
+	shortURL := cfg.BaseURL + "/" + key
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortUrl))
+	w.Write([]byte(shortURL))
 }

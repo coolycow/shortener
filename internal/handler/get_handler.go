@@ -22,16 +22,16 @@ func GetHandler(w http.ResponseWriter, r *http.Request, urls map[string]string) 
 	}
 
 	// Получаем исходный URL по id
-	rawUrl := urls[id]
+	rawURL := urls[id]
 
 	// Проверяем, что полученное значение не пустое
-	if rawUrl == "" {
+	if rawURL == "" {
 		http.Error(w, "URL not found", http.StatusNotFound)
 		return
 	}
 
 	// Формируем ответ
 	w.Header().Set("Content-Type", "text/plain")
-	w.Header().Set("Location", rawUrl)
+	w.Header().Set("Location", rawURL)
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
