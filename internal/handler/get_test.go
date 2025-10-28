@@ -149,6 +149,7 @@ func TestGetHandler(t *testing.T) {
 			GetHandler(setupFullRepository())(w, request)
 
 			result := w.Result()
+			defer result.Body.Close()
 
 			assert.Equal(t, test.want.code, result.StatusCode)
 			assert.Equal(t, test.want.location, result.Header.Get("Location"))
