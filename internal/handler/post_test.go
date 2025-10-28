@@ -144,7 +144,7 @@ func TestPostHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo := repository.NewURLRepository()
+			repo := repository.NewDoubleMapsRepository()
 
 			w := httptest.NewRecorder()
 			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))

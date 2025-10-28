@@ -11,7 +11,7 @@ import (
 
 // setupFullRepository возвращает репозиторий с заранее сохраненными ключами и соответствующими им URL
 func setupFullRepository() repository.URLRepository {
-	repo := repository.NewURLRepository()
+	repo := repository.NewDoubleMapsRepository()
 
 	defaultURLs := map[string]string{
 		"":          "https://mail.ru",
