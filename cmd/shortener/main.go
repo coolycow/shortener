@@ -6,20 +6,20 @@ import (
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/handler"
+	"github.com/coolycow/shortener/internal/repository"
 )
 
 func main() {
 	mux := http.NewServeMux()
 	cfg := config.NewConfig()
-	shortToOriginal := map[string]string{}
-	originalToShort := map[string]string{}
+	repo := repository.NewDoubleMapsRepository()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			handler.PostHandler(w, r, cfg, shortToOriginal, originalToShort)
+			handler.PostHandler(cfg, repo)(w, r)
 		case http.MethodGet:
-			handler.GetHandler(w, r, shortToOriginal)
+			handler.GetHandler(repo)(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
