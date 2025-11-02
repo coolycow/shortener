@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/coolycow/shortener/internal/config"
+	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,9 +91,9 @@ func TestPostHandler(t *testing.T) {
 			body:        "https://example.com",
 			contentType: "text/plain",
 			want: want{
-				code:        405,
+				code:        404,
 				contentType: "text/plain",
-				body:        "Method not allowed\n",
+				body:        "404 page not found",
 			},
 		},
 		{
@@ -102,7 +104,7 @@ func TestPostHandler(t *testing.T) {
 			want: want{
 				code:        415,
 				contentType: "text/plain",
-				body:        "Content type not allowed\n",
+				body:        "Content type not allowed",
 			},
 		},
 		{
@@ -113,7 +115,7 @@ func TestPostHandler(t *testing.T) {
 			want: want{
 				code:        400,
 				contentType: "text/plain",
-				body:        "Empty body\n",
+				body:        "Empty body",
 			},
 		},
 		{
@@ -124,7 +126,7 @@ func TestPostHandler(t *testing.T) {
 			want: want{
 				code:        400,
 				contentType: "text/plain",
-				body:        "Empty URL\n",
+				body:        "Empty URL",
 			},
 		},
 		{
@@ -135,7 +137,7 @@ func TestPostHandler(t *testing.T) {
 			want: want{
 				code:        400,
 				contentType: "text/plain",
-				body:        "Invalid URL\n",
+				body:        "Invalid URL",
 			},
 		},
 	}
@@ -145,19 +147,25 @@ func TestPostHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo := repository.NewDoubleMapsRepository()
+			gin.SetMode(gin.TestMode)
 
-			w := httptest.NewRecorder()
+			router := gin.New()
+			router.Use(middleware.ErrorHandler())
+			router.POST("/", PostHandler(config.NewConfig(), repo))
+
 			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", test.contentType)
 
-			PostHandler(cfg, repo)(w, request)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, request)
 
 			result := w.Result()
 
 			// Проверяем, что код ответа и тип контента соответствуют ожиданиям
 			assert.Equal(t, test.want.code, result.StatusCode)
 
-			defer result.Body.Close()
+			result.Body.Close()
+
 			resultBody, err := io.ReadAll(result.Body)
 
 			resultString := string(resultBody)

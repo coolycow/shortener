@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -90,7 +92,7 @@ func TestGetHandler(t *testing.T) {
 			method: "POST",
 			key:    "AAbbCC2",
 			want: want{
-				code:     405,
+				code:     404,
 				location: "",
 			},
 		},
@@ -99,7 +101,7 @@ func TestGetHandler(t *testing.T) {
 			method: "GET",
 			key:    "",
 			want: want{
-				code:     400,
+				code:     404,
 				location: "",
 			},
 		},
@@ -143,13 +145,21 @@ func TestGetHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(middleware.ErrorHandler())
+			router.GET("/:key", GetHandler(setupFullRepository()))
+
 			request := httptest.NewRequest(test.method, "/"+test.key, nil)
 
 			w := httptest.NewRecorder()
-			GetHandler(setupFullRepository())(w, request)
+
+			router.ServeHTTP(w, request)
 
 			result := w.Result()
-			defer result.Body.Close()
+			if err := result.Body.Close(); err != nil {
+				t.Error(err)
+			}
 
 			assert.Equal(t, test.want.code, result.StatusCode)
 			assert.Equal(t, test.want.location, result.Header.Get("Location"))

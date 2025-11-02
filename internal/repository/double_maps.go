@@ -1,12 +1,12 @@
 package repository
 
-// URLRepository представляет репозиторий для хранения URL
+// DoubleMapsRepository представляет репозиторий для хранения URL
 type DoubleMapsRepository struct {
 	shortToOriginal map[string]string
 	originalToShort map[string]string
 }
 
-// NewURLRepository создает новый экземпляр URLRepository
+// NewDoubleMapsRepository NewURLRepository создает новый экземпляр URLRepository
 func NewDoubleMapsRepository() *DoubleMapsRepository {
 	return &DoubleMapsRepository{
 		shortToOriginal: make(map[string]string),

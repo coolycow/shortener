@@ -4,38 +4,40 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/gin-gonic/gin"
 )
 
 // GetHandler Обрабатываем GET-запросы к серверу.
-func GetHandler(repo repository.URLRepository) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
+func GetHandler(repo repository.URLRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		// Получаем id из URL
-		id := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/"))
+		key := strings.TrimSpace(strings.TrimPrefix(c.Param("key"), "/"))
 
 		// Проверяем, что id не пустой
-		if id == "" {
-			http.Error(w, "Empty id", http.StatusBadRequest)
+		if key == "" {
+			_ = c.Error(error.CustomError{
+				Message:    "Key is required",
+				StatusCode: http.StatusBadRequest,
+			})
 			return
 		}
 
 		// Получаем исходный URL по id из репозитория
-		rawURL, exists := repo.GetOriginalURL(id)
+		rawURL, exists := repo.GetOriginalURL(key)
 
 		// Проверяем, что URL существует
 		if !exists {
-			http.Error(w, "URL not found", http.StatusNotFound)
+			_ = c.Error(error.CustomError{
+				Message:    "URL not found",
+				StatusCode: http.StatusNotFound,
+			})
 			return
 		}
 
 		// Формируем ответ
-		w.Header().Set("Content-Type", "text/plain")
-		w.Header().Set("Location", rawURL)
-		w.WriteHeader(http.StatusTemporaryRedirect)
+		c.Header("Location", rawURL)
+		c.Status(http.StatusTemporaryRedirect)
 	}
 }

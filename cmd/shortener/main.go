@@ -2,34 +2,23 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/coolycow/shortener/internal/config"
-	"github.com/coolycow/shortener/internal/handler"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/coolycow/shortener/internal/router"
 )
 
 func main() {
-	mux := http.NewServeMux()
 	cfg := config.NewConfig()
 	repo := repository.NewDoubleMapsRepository()
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			handler.PostHandler(cfg, repo)(w, r)
-		case http.MethodGet:
-			handler.GetHandler(repo)(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	r := router.NewRouter(cfg, repo)
 
 	fmt.Println("Starting server ")
 
-	err := http.ListenAndServe(cfg.ServerAddress, mux)
+	err := r.Run(cfg.ServerAddress)
 
 	if err != nil {
+
 		panic(err)
 	}
 }
