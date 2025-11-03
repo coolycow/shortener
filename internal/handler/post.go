@@ -81,7 +81,7 @@ func PostHandler(cfg *config.Config, repo repository.URLRepository) gin.HandlerF
 			repo,
 			cfg.RandomStringLength,
 			cfg.RandomStringMaxLength,
-			cfg.MaxGenerationAttempts)
+			cfg.RandomStringMaxGenerationAttempts)
 
 		if err != nil || validURL.Scheme == "" {
 			_ = c.Error(error.CustomError{

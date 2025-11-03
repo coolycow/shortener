@@ -142,7 +142,7 @@ func TestPostHandler(t *testing.T) {
 		},
 	}
 
-	cfg := config.NewConfig()
+	cfg, _ := config.InitConfig()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestPostHandler(t *testing.T) {
 
 			router := gin.New()
 			router.Use(middleware.ErrorHandler())
-			router.POST("/", PostHandler(config.NewConfig(), repo))
+			router.POST("/", PostHandler(cfg, repo))
 
 			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", test.contentType)

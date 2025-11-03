@@ -9,13 +9,19 @@ import (
 )
 
 func main() {
-	cfg := config.NewConfig()
+	cfg, err := config.InitConfig()
+
+	if err != nil {
+		panic(err)
+	}
+
 	repo := repository.NewDoubleMapsRepository()
 	r := router.NewRouter(cfg, repo)
 
-	fmt.Println("Starting server ")
+	serverAddress := cfg.GetServerAddress()
+	fmt.Printf("Starting server %s\n", serverAddress)
 
-	err := r.Run(cfg.ServerAddress)
+	err = r.Run(serverAddress)
 
 	if err != nil {
 
