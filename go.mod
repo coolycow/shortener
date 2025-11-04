@@ -1,6 +1,6 @@
 module github.com/coolycow/shortener
 
-go 1.25.3
+go 1.24.9
 
 require (
 	github.com/gin-gonic/gin v1.11.0
