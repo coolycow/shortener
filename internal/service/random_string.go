@@ -25,6 +25,8 @@ func generate(length int) string {
 	return sb.String()
 }
 
+var ErrLengthExceedsMaximum = errors.New("length exceeds maximum length")
+
 // CreateUniqueStringForURL генерирует уникальную строку с учетом проверки в репозитории
 func CreateUniqueStringForURL(
 	repo repository.URLRepository,
@@ -46,7 +48,7 @@ func CreateUniqueStringForURL(
 
 		if length > maxLength {
 			log.Printf("Length (%d) exceeds maximum length: (%d)", length, maxLength)
-			return "", errors.New("length exceeds maximum length")
+			return "", ErrLengthExceedsMaximum
 		}
 	}
 	return key, nil

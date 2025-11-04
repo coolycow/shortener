@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/repository"
@@ -12,7 +13,7 @@ func main() {
 	cfg, err := config.InitConfig()
 
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
 
 	repo := repository.NewDoubleMapsRepository()
@@ -24,7 +25,6 @@ func main() {
 	err = r.Run(serverAddress)
 
 	if err != nil {
-
-		panic(err)
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }

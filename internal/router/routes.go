@@ -4,6 +4,7 @@ import (
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/handler"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -12,7 +13,9 @@ func setupURLRoutes(
 	cfg *config.Config,
 	repo repository.URLRepository,
 ) {
-	r.GET("/:key", handler.GetHandler(repo))
+	srv := service.NewURLService(cfg, repo)
 
-	r.POST("/", handler.PostHandler(cfg, repo))
+	r.GET("/:key", handler.GetHandler(srv))
+
+	r.POST("/", handler.PostHandler(srv))
 }

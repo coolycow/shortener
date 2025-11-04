@@ -4,35 +4,22 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/coolycow/shortener/internal/error"
-	"github.com/coolycow/shortener/internal/repository"
+	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // GetHandler Обрабатываем GET-запросы к серверу.
-func GetHandler(repo repository.URLRepository) gin.HandlerFunc {
+func GetHandler(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Получаем id из URL
+		// Получаем ключ из URL
 		key := strings.TrimSpace(strings.TrimPrefix(c.Param("key"), "/"))
 
-		// Проверяем, что id не пустой
-		if key == "" {
-			_ = c.Error(error.CustomError{
-				Message:    "Key is required",
-				StatusCode: http.StatusBadRequest,
-			})
-			return
-		}
+		// Получаем исходный URL по ключу из сервиса
+		rawURL, err := service.GetOriginalURL(key)
 
-		// Получаем исходный URL по id из репозитория
-		rawURL, exists := repo.GetOriginalURL(key)
-
-		// Проверяем, что URL существует
-		if !exists {
-			_ = c.Error(error.CustomError{
-				Message:    "URL not found",
-				StatusCode: http.StatusNotFound,
-			})
+		// Сервис возвращает CustomError
+		if err != nil {
+			_ = c.Error(err)
 			return
 		}
 

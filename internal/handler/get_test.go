@@ -5,14 +5,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
 // setupFullRepository возвращает репозиторий с заранее сохраненными ключами и соответствующими им URL
-func setupFullRepository() repository.URLRepository {
+func setupTestService() service.URLService {
+	cfg, _ := config.InitConfig()
 	repo := repository.NewDoubleMapsRepository()
 
 	defaultURLs := map[string]string{
@@ -27,7 +30,7 @@ func setupFullRepository() repository.URLRepository {
 		repo.SaveURL(id, url)
 	}
 
-	return repo
+	return service.NewURLService(cfg, repo)
 }
 
 func TestGetHandler(t *testing.T) {
@@ -148,7 +151,7 @@ func TestGetHandler(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
 			router.Use(middleware.ErrorHandler())
-			router.GET("/:key", GetHandler(setupFullRepository()))
+			router.GET("/:key", GetHandler(setupTestService()))
 
 			request := httptest.NewRequest(test.method, "/"+test.key, nil)
 

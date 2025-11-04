@@ -11,6 +11,7 @@ import (
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/repository"
+	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,11 +148,13 @@ func TestPostHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			repo := repository.NewDoubleMapsRepository()
+			srv := service.NewURLService(cfg, repo)
+
 			gin.SetMode(gin.TestMode)
 
 			router := gin.New()
 			router.Use(middleware.ErrorHandler())
-			router.POST("/", PostHandler(cfg, repo))
+			router.POST("/", PostHandler(srv))
 
 			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", test.contentType)

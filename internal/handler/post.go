@@ -6,15 +6,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/error"
-	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // PostHandler обрабатывает POST-запросы к серверу
-func PostHandler(cfg *config.Config, repo repository.URLRepository) gin.HandlerFunc {
+func PostHandler(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - text/plain
 		// Учитываем, что "Content-Type" может содержать и другие значения, например, charset=utf-8
@@ -69,32 +67,14 @@ func PostHandler(cfg *config.Config, repo repository.URLRepository) gin.HandlerF
 			return
 		}
 
-		// Если ссылка уже есть в репозитории, то возвращаем короткую ссылку
-		validStringURL := validURL.String()
-		if key, exists := repo.GetShortURL(validStringURL); exists {
-			c.String(http.StatusCreated, cfg.BaseURL+"/"+key)
+		shortURL, err := service.CreateShortURL(validURL.String())
+
+		if err != nil {
+			_ = c.Error(err)
 			return
 		}
-
-		// Генерируем короткую ссылку заданной в настройках длины и гарантируем её уникальность
-		key, err := service.CreateUniqueStringForURL(
-			repo,
-			cfg.RandomStringLength,
-			cfg.RandomStringMaxLength,
-			cfg.RandomStringMaxGenerationAttempts)
-
-		if err != nil || validURL.Scheme == "" {
-			_ = c.Error(error.CustomError{
-				Message:    "Internal Server Error",
-				StatusCode: http.StatusInternalServerError,
-			})
-			return
-		}
-
-		// Сохраняем короткую ссылку в репозитории
-		repo.SaveURL(key, validStringURL)
 
 		// Формируем ответ
-		c.String(http.StatusCreated, cfg.BaseURL+"/"+key)
+		c.String(http.StatusCreated, shortURL)
 	}
 }
