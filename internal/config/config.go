@@ -17,6 +17,7 @@ type Config struct {
 	RandomStringLength                int    `env:"RANDOM_STRING_LENGTH"`
 	RandomStringMaxLength             int    `env:"RANDOM_STRING_MAX_LENGTH"`
 	RandomStringMaxGenerationAttempts int    `env:"RANDOM_STRING_MAX_GENERATION_ATTEMPTS"`
+	LogLevel                          string `env:"LOG_LEVEL"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -32,6 +33,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("RandomStringLength: %d\n", c.RandomStringLength)
 	fmt.Printf("RandomStringMaxLength: %d\n", c.RandomStringMaxLength)
 	fmt.Printf("RandomStringMaxGenerationAttempts: %d\n", c.RandomStringMaxGenerationAttempts)
+	fmt.Printf("LogLevel: %s\n", c.LogLevel)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -114,6 +116,10 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.Port = port
 	}
 
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		config.LogLevel = logLevel
+	}
+
 	return config, nil
 }
 
@@ -130,6 +136,8 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.IntVarP(&config.RandomStringLength, "random-length", "l", 6, "random string length")
 	flagSet.IntVarP(&config.RandomStringMaxLength, "random-max-length", "m", 100, "random string max length")
 	flagSet.IntVarP(&config.RandomStringMaxGenerationAttempts, "random-attempts", "t", 1000, "max generation attempts")
+
+	flagSet.StringVarP(&config.LogLevel, "log-level", "e", "info", "log level")
 
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))

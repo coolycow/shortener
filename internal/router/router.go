@@ -9,6 +9,8 @@ import (
 
 func NewRouter(cfg *config.Config, repo repository.URLRepository) *gin.Engine {
 	router := gin.Default()
+
+	router.Use(middleware.RequestLogger())
 	router.Use(middleware.ErrorHandler())
 
 	setupURLRoutes(router, cfg, repo)

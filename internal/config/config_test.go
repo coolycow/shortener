@@ -22,6 +22,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                6,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -34,6 +35,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                6,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -46,6 +48,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                6,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -58,6 +61,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                6,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -70,6 +74,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                8,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -82,6 +87,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                8,
 				RandomStringMaxLength:             200,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -94,6 +100,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                8,
 				RandomStringMaxLength:             200,
 				RandomStringMaxGenerationAttempts: 5000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -113,6 +120,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                7,
 				RandomStringMaxLength:             8,
 				RandomStringMaxGenerationAttempts: 9,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -128,6 +136,7 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                6,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
 			},
 		},
 		{
@@ -144,6 +153,37 @@ func TestConfig(t *testing.T) {
 				RandomStringLength:                6,
 				RandomStringMaxLength:             100,
 				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
+			},
+		},
+		{
+			name: "Log level debug",
+			args: []string{"-e", "debug"},
+			want: Config{
+				Host:                              "127.0.0.1",
+				Port:                              8080,
+				BaseURL:                           "http://127.0.0.1:8080",
+				RandomStringLength:                6,
+				RandomStringMaxLength:             100,
+				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "debug",
+			},
+		},
+		{
+			name: "Env: log level warning",
+			env: map[string]string{
+				"SERVER_ADDRESS": "127.0.0.2:8888",
+				"BASE_URL":       "https://shortener.com",
+				"LOG_LEVEL":      "warn",
+			},
+			want: Config{
+				Host:                              "127.0.0.2",
+				Port:                              8888,
+				BaseURL:                           "https://shortener.com",
+				RandomStringLength:                6,
+				RandomStringMaxLength:             100,
+				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "warn",
 			},
 		},
 	}
