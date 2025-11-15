@@ -3,6 +3,7 @@ module github.com/coolycow/shortener
 go 1.24.9
 
 require (
+	github.com/caarlos0/env/v6 v6.10.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
