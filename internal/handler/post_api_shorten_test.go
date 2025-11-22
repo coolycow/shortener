@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,17 +10,20 @@ import (
 	"strings"
 	"testing"
 
+	compgzip "compress/gzip"
+
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
+	"github.com/gin-gonic/contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostApiShortenHandler(t *testing.T) {
+func TestPostAPIShortenHandler(t *testing.T) {
 	type want struct {
 		code        int
 		contentType string
@@ -27,11 +31,13 @@ func TestPostApiShortenHandler(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		method      string
-		contentType string
-		url         string
-		want        want
+		name            string
+		method          string
+		contentType     string
+		contentEncoding string
+		url             string
+		gzip            bool
+		want            want
 	}{
 		{
 			name:        "Create new",
@@ -127,6 +133,30 @@ func TestPostApiShortenHandler(t *testing.T) {
 				body:        `{"error":"Invalid URL"}`,
 			},
 		},
+		{
+			name:            "Invalid gzip content",
+			method:          http.MethodPost,
+			url:             `https://yandex.ru`,
+			contentType:     "application/json",
+			contentEncoding: "gzip",
+			want: want{
+				code:        400,
+				contentType: "application/json",
+				body:        `{"error":"Failed to decompress gzip data"}`,
+			},
+		},
+		{
+			name:            "Correct gzip content",
+			method:          http.MethodPost,
+			url:             `https://yandex.ru`,
+			contentType:     "application/json",
+			contentEncoding: "gzip",
+			gzip:            true,
+			want: want{
+				code:        201,
+				contentType: "application/json",
+			},
+		},
 	}
 
 	cfg, _ := config.InitConfig()
@@ -141,10 +171,25 @@ func TestPostApiShortenHandler(t *testing.T) {
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
+			router.Use(middleware.RequestGzip())
 			router.POST("/api/shorten", PostAPIShortenHandler(srv))
 
-			request := httptest.NewRequest(test.method, "/api/shorten", strings.NewReader(`{"url": "`+test.url+`"}`))
+			var request *http.Request
+
+			if test.gzip {
+				router.Use(gzip.Gzip(gzip.DefaultCompression))
+				jsonData := []byte(`{"url": "` + test.url + `"}`)
+
+				compressedData, err := gzipData(jsonData)
+				require.NoError(t, err)
+
+				request = httptest.NewRequest(test.method, "/api/shorten", bytes.NewReader(compressedData))
+			} else {
+				request = httptest.NewRequest(test.method, "/api/shorten", strings.NewReader(`{"url": "`+test.url+`"}`))
+			}
+
 			request.Header.Set("Content-Type", test.contentType)
+			request.Header.Set("Content-Encoding", test.contentEncoding)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, request)
@@ -191,4 +236,20 @@ func TestPostApiShortenHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Функция для сжатия данных в GZIP
+func gzipData(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := compgzip.NewWriter(&buf)
+
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
