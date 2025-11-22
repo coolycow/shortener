@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// PostApiShortenHandler обрабатывает POST-запросы к серверу
-func PostApiShortenHandler(service service.URLService) gin.HandlerFunc {
+// PostAPIShortenHandler обрабатывает POST-запросы к серверу
+func PostAPIShortenHandler(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json
 		contentType := c.GetHeader("Content-Type")
@@ -29,7 +29,7 @@ func PostApiShortenHandler(service service.URLService) gin.HandlerFunc {
 		}
 
 		// Читаем тело запроса
-		var req model.ApiShortenRequest
+		var req model.APIShortenRequest
 		dec := json.NewDecoder(c.Request.Body)
 
 		if err := dec.Decode(&req); err != nil {
@@ -72,7 +72,7 @@ func PostApiShortenHandler(service service.URLService) gin.HandlerFunc {
 
 		logger.Log.Debug("create short url", zap.String("url", shortURL))
 
-		resp := model.ApiShortenResponse{
+		resp := model.APIShortenResponse{
 			Result: shortURL,
 		}
 

@@ -19,5 +19,5 @@ func setupURLRoutes(
 
 	r.POST("/", handler.PostHandler(srv))
 
-	r.POST("/api/shorten", handler.PostApiShortenHandler(srv))
+	r.POST("/api/shorten", handler.PostAPIShortenHandler(srv))
 }

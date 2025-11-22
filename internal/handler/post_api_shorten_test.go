@@ -98,7 +98,7 @@ func TestPostApiShortenHandler(t *testing.T) {
 			name:        "Invalid content type",
 			method:      http.MethodPost,
 			url:         `https://example.com`,
-			contentType: "plain/text",
+			contentType: "text/plain",
 			want: want{
 				code:        415,
 				contentType: "application/json",
@@ -141,7 +141,7 @@ func TestPostApiShortenHandler(t *testing.T) {
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
-			router.POST("/api/shorten", PostApiShortenHandler(srv))
+			router.POST("/api/shorten", PostAPIShortenHandler(srv))
 
 			request := httptest.NewRequest(test.method, "/api/shorten", strings.NewReader(`{"url": "`+test.url+`"}`))
 			request.Header.Set("Content-Type", test.contentType)
@@ -160,8 +160,12 @@ func TestPostApiShortenHandler(t *testing.T) {
 
 			require.NoError(t, err)
 
-			var resp model.ApiShortenResponse
+			var resp model.APIShortenResponse
 			err = json.Unmarshal(resultBody, &resp)
+
+			if result.StatusCode != http.StatusNotFound {
+				require.NoError(t, err)
+			}
 
 			// Проверяем, что тело ответа соответствует ожиданиям
 			if test.want.code == 201 {
