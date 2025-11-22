@@ -150,6 +150,7 @@ func TestGetHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
+			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.GET("/:key", GetHandler(setupTestService()))
 

@@ -18,4 +18,6 @@ func setupURLRoutes(
 	r.GET("/:key", handler.GetHandler(srv))
 
 	r.POST("/", handler.PostHandler(srv))
+
+	r.POST("/api/shorten", handler.PostApiShortenHandler(srv))
 }
