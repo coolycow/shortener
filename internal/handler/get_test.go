@@ -21,20 +21,10 @@ func setupTestService() service.URLService {
 
 	// Временный файл для хранилища
 	tmpFile := "test_" + uuid.New().String() + ".json"
-	defer func(name string) {
-		err := os.Remove(name)
-		if err != nil {
-
-		}
-	}(tmpFile)
+	defer os.Remove(tmpFile)
 
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer func(repo *repository.DoubleMapsRepository) {
-		err := repo.Close()
-		if err != nil {
-
-		}
-	}(repo)
+	defer repo.Close()
 
 	defaultURLs := map[string]string{
 		"":          "https://mail.ru",

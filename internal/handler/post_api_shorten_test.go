@@ -167,20 +167,10 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Временный файл для хранилища
 			tmpFile := "test_" + uuid.New().String() + ".json"
-			defer func(name string) {
-				err := os.Remove(name)
-				if err != nil {
-
-				}
-			}(tmpFile)
+			defer os.Remove(tmpFile)
 
 			repo := repository.NewDoubleMapsRepository(tmpFile)
-			defer func(repo *repository.DoubleMapsRepository) {
-				err := repo.Close()
-				if err != nil {
-
-				}
-			}(repo)
+			defer repo.Close()
 
 			srv := service.NewURLService(cfg, repo)
 
