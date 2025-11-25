@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -18,6 +19,7 @@ type Config struct {
 	RandomStringMaxLength             int    `env:"RANDOM_STRING_MAX_LENGTH"`
 	RandomStringMaxGenerationAttempts int    `env:"RANDOM_STRING_MAX_GENERATION_ATTEMPTS"`
 	LogLevel                          string `env:"LOG_LEVEL"`
+	FileStoragePath                   string `env:"FILE_STORAGE_PATH"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -34,6 +36,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("RandomStringMaxLength: %d\n", c.RandomStringMaxLength)
 	fmt.Printf("RandomStringMaxGenerationAttempts: %d\n", c.RandomStringMaxGenerationAttempts)
 	fmt.Printf("LogLevel: %s\n", c.LogLevel)
+	fmt.Printf("FileStoragePath: %s\n", c.FileStoragePath)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -120,6 +123,10 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.LogLevel = logLevel
 	}
 
+	if fileStoragePath := os.Getenv("FILE_STORAGE_PATH"); fileStoragePath != "" {
+		config.FileStoragePath = fileStoragePath
+	}
+
 	return config, nil
 }
 
@@ -138,6 +145,8 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.IntVarP(&config.RandomStringMaxGenerationAttempts, "random-attempts", "t", 1000, "max generation attempts")
 
 	flagSet.StringVarP(&config.LogLevel, "log-level", "e", "info", "log level")
+
+	flagSet.StringVarP(&config.FileStoragePath, "file-storage-path", "f", getDefaultStoragePath(), "file storage path")
 
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))
@@ -226,4 +235,15 @@ func splitServerAddress(address string) (string, int, error) {
 	}
 
 	return host, port, nil
+}
+
+// Получаем директорию, где находится исполняемый файл
+func getDefaultStoragePath() string {
+	exe, err := os.Executable()
+
+	if err != nil {
+		return "urls.json"
+	}
+
+	return filepath.Join(filepath.Dir(exe), "urls.json")
 }

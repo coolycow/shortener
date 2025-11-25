@@ -27,7 +27,15 @@ func main() {
 	}
 
 	// Инициализируем репозиторий и роутер
-	repo := repository.NewDoubleMapsRepository()
+	repo := repository.NewDoubleMapsRepository(cfg.FileStoragePath)
+
+	// В конце работы приложения необходимо правильно закрыть хранилище.
+	defer func() {
+		if err = repo.Close(); err != nil {
+			logger.Log.Error("Error closing repository", zap.Error(err))
+		}
+	}()
+
 	r := router.NewRouter(cfg, repo)
 
 	// Получаем адрес сервера из настроек и запускаем сервер

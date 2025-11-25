@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,7 +149,23 @@ func TestPostHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo := repository.NewDoubleMapsRepository()
+			// Временный файл для хранилища
+			tmpFile := "test_" + uuid.New().String() + ".json"
+			defer func(name string) {
+				err := os.Remove(name)
+				if err != nil {
+
+				}
+			}(tmpFile)
+
+			repo := repository.NewDoubleMapsRepository(tmpFile)
+			defer func(repo *repository.DoubleMapsRepository) {
+				err := repo.Close()
+				if err != nil {
+
+				}
+			}(repo)
+
 			srv := service.NewURLService(cfg, repo)
 
 			gin.SetMode(gin.TestMode)
