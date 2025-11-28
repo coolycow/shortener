@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,90 +11,91 @@ import (
 	"strings"
 	"testing"
 
+	compgzip "compress/gzip"
+
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
+	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
+	"github.com/gin-gonic/contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostHandler(t *testing.T) {
+func TestPostAPIShortenHandler(t *testing.T) {
 	type want struct {
 		code        int
 		contentType string
-		body        string // Добавляем поле для проверки тела ответа
+		body        string
 	}
 
 	tests := []struct {
-		name        string
-		method      string
-		contentType string
-		body        string
-		want        want
+		name            string
+		method          string
+		contentType     string
+		contentEncoding string
+		url             string
+		gzip            bool
+		want            want
 	}{
 		{
 			name:        "Create new",
 			method:      http.MethodPost,
-			body:        "https://example.com",
-			contentType: "text/plain",
+			url:         `https://practicum.yandex.ru`,
+			contentType: "application/json",
 			want: want{
 				code:        201,
-				contentType: "text/plain",
-				body:        "",
+				contentType: "application/json",
 			},
 		},
 		{
 			name:        "URL without domain",
 			method:      http.MethodPost,
-			body:        "https://example",
-			contentType: "text/plain",
+			url:         `https://practicum`,
+			contentType: "application/json",
 			want: want{
 				code:        201,
-				contentType: "text/plain",
-				body:        "",
+				contentType: "application/json",
 			},
 		},
 		{
 			name:        "Content type with charset",
 			method:      http.MethodPost,
-			body:        "https://example.com",
-			contentType: "text/plain; charset=utf-8",
+			url:         `https://practicum.yandex.ru`,
+			contentType: "application/json; charset=utf-8",
 			want: want{
 				code:        201,
-				contentType: "text/plain",
-				body:        "",
+				contentType: "application/json",
 			},
 		},
 		{
 			name:        "URL with params",
 			method:      http.MethodPost,
-			body:        "https://example.com?a=1,2,3&b=true&c=filter[abd]",
-			contentType: "text/plain; charset=utf-8",
+			url:         `https://example.com?a=1,2,3&b=true&c=filter[abd]`,
+			contentType: "application/json; charset=utf-8",
 			want: want{
 				code:        201,
-				contentType: "text/plain",
-				body:        "",
+				contentType: "application/json",
 			},
 		},
 		{
 			name:        "Cyrillic URL",
 			method:      http.MethodPost,
-			body:        "https://пример.рф/путь?параметр=значение",
-			contentType: "text/plain; charset=utf-8",
+			url:         `https://пример.рф/путь?параметр=значение`,
+			contentType: "application/json; charset=utf-8",
 			want: want{
 				code:        201,
-				contentType: "text/plain",
-				body:        "",
+				contentType: "application/json",
 			},
 		},
 		{
 			name:        "Invalid method",
 			method:      http.MethodGet,
-			body:        "https://example.com",
-			contentType: "text/plain",
+			url:         `https://example.com`,
+			contentType: "application/json",
 			want: want{
 				code:        404,
 				contentType: "text/plain",
@@ -102,45 +105,58 @@ func TestPostHandler(t *testing.T) {
 		{
 			name:        "Invalid content type",
 			method:      http.MethodPost,
-			body:        "https://example.com",
-			contentType: "application/json",
-			want: want{
-				code:        415,
-				contentType: "text/plain",
-				body:        "Content type not allowed",
-			},
-		},
-		{
-			name:        "Empty body",
-			method:      http.MethodPost,
-			body:        "",
+			url:         `https://example.com`,
 			contentType: "text/plain",
 			want: want{
-				code:        400,
-				contentType: "text/plain",
-				body:        "Empty body",
+				code:        415,
+				contentType: "application/json",
+				body:        `{"error":"Content type not allowed"}`,
 			},
 		},
 		{
 			name:        "Empty URL",
 			method:      http.MethodPost,
-			body:        "           ",
-			contentType: "text/plain",
+			url:         ``,
+			contentType: "application/json",
 			want: want{
 				code:        400,
-				contentType: "text/plain",
-				body:        "Empty URL",
+				contentType: "application/json",
+				body:        `{"error":"Empty URL"}`,
 			},
 		},
 		{
 			name:        "URL without protocol",
 			method:      http.MethodPost,
-			body:        "invalidurl.ru",
-			contentType: "text/plain",
+			url:         `invalidurl.ru`,
+			contentType: "application/json",
 			want: want{
 				code:        400,
-				contentType: "text/plain",
-				body:        "Invalid URL",
+				contentType: "application/json",
+				body:        `{"error":"Invalid URL"}`,
+			},
+		},
+		{
+			name:            "Invalid gzip content",
+			method:          http.MethodPost,
+			url:             `https://yandex.ru`,
+			contentType:     "application/json",
+			contentEncoding: "gzip",
+			want: want{
+				code:        400,
+				contentType: "application/json",
+				body:        `{"error":"Failed to decompress gzip data"}`,
+			},
+		},
+		{
+			name:            "Correct gzip content",
+			method:          http.MethodPost,
+			url:             `https://yandex.ru`,
+			contentType:     "application/json",
+			contentEncoding: "gzip",
+			gzip:            true,
+			want: want{
+				code:        201,
+				contentType: "application/json",
 			},
 		},
 	}
@@ -163,10 +179,25 @@ func TestPostHandler(t *testing.T) {
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
-			router.POST("/", PostHandler(srv))
+			router.Use(middleware.RequestGzip())
+			router.POST("/api/shorten", PostAPIShortenHandler(srv))
 
-			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))
+			var request *http.Request
+
+			if test.gzip {
+				router.Use(gzip.Gzip(gzip.DefaultCompression))
+				jsonData := []byte(`{"url": "` + test.url + `"}`)
+
+				compressedData, err := gzipData(jsonData)
+				require.NoError(t, err)
+
+				request = httptest.NewRequest(test.method, "/api/shorten", bytes.NewReader(compressedData))
+			} else {
+				request = httptest.NewRequest(test.method, "/api/shorten", strings.NewReader(`{"url": "`+test.url+`"}`))
+			}
+
 			request.Header.Set("Content-Type", test.contentType)
+			request.Header.Set("Content-Encoding", test.contentEncoding)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, request)
@@ -180,20 +211,25 @@ func TestPostHandler(t *testing.T) {
 
 			resultBody, err := io.ReadAll(result.Body)
 
-			resultString := string(resultBody)
-
 			require.NoError(t, err)
+
+			var resp model.APIShortenResponse
+			err = json.Unmarshal(resultBody, &resp)
+
+			if result.StatusCode != http.StatusNotFound {
+				require.NoError(t, err)
+			}
 
 			// Проверяем, что тело ответа соответствует ожиданиям
 			if test.want.code == 201 {
-				key := strings.TrimPrefix(resultString, cfg.BaseURL+"/")
+				key := strings.TrimPrefix(resp.Result, cfg.BaseURL+"/")
 
 				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
 				originalURL, _ := repo.GetOriginalURL(key)
 
 				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
 				originalParsedURL, _ := url.Parse(originalURL)
-				bodyParsedURL, _ := url.Parse(test.body)
+				bodyParsedURL, _ := url.Parse(test.url)
 
 				// Проверяем, что длина репозитория увеличилась на 1
 				assert.Equal(t, repo.GetSize(), 1)
@@ -202,10 +238,26 @@ func TestPostHandler(t *testing.T) {
 				assert.Equal(t, originalParsedURL.String(), bodyParsedURL.String())
 
 				// Проверяем, что ссылка из ответа соответствует схеме
-				assert.Equal(t, resultString, cfg.BaseURL+"/"+key)
+				assert.Equal(t, resp.Result, cfg.BaseURL+"/"+key)
 			} else if test.want.body != "" {
-				assert.Equal(t, test.want.body, resultString)
+				assert.Equal(t, test.want.body, string(resultBody))
 			}
 		})
 	}
+}
+
+// Функция для сжатия данных в GZIP
+func gzipData(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := compgzip.NewWriter(&buf)
+
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

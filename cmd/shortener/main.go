@@ -1,29 +1,50 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/coolycow/shortener/internal/config"
+	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/router"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Инициализируем настройки (приоритет: окружение, флаги, дефолт)
 	cfg, err := config.InitConfig()
 
 	if err != nil {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
 
-	repo := repository.NewDoubleMapsRepository()
+	// Выводим настройки в консоль для наглядности
+	cfg.PrintConfig()
+
+	// Инициализируем логер
+	if err = logger.Initialize(cfg.LogLevel); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+
+	// Инициализируем репозиторий и роутер
+	repo := repository.NewDoubleMapsRepository(cfg.FileStoragePath)
+
+	// В конце работы приложения необходимо правильно закрыть хранилище.
+	defer func() {
+		if err = repo.Close(); err != nil {
+			logger.Log.Error("Error closing repository", zap.Error(err))
+		}
+	}()
+
 	r := router.NewRouter(cfg, repo)
 
+	// Получаем адрес сервера из настроек и запускаем сервер
 	serverAddress := cfg.GetServerAddress()
-	fmt.Printf("Starting server %s\n", serverAddress)
+	logger.Log.Info("Running server ", zap.String("address", serverAddress))
 
 	err = r.Run(serverAddress)
 
+	// Если сервер не стартовал - фатальная ошибка
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

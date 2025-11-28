@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -10,13 +11,20 @@ import (
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 // setupFullRepository возвращает репозиторий с заранее сохраненными ключами и соответствующими им URL
 func setupTestService() service.URLService {
 	cfg, _ := config.InitConfig()
-	repo := repository.NewDoubleMapsRepository()
+
+	// Временный файл для хранилища
+	tmpFile := "test_" + uuid.New().String() + ".json"
+	defer os.Remove(tmpFile)
+
+	repo := repository.NewDoubleMapsRepository(tmpFile)
+	defer repo.Close()
 
 	defaultURLs := map[string]string{
 		"":          "https://mail.ru",
@@ -150,6 +158,7 @@ func TestGetHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
+			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.GET("/:key", GetHandler(setupTestService()))
 
