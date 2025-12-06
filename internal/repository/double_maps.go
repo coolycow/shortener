@@ -86,6 +86,7 @@ func (r *DoubleMapsRepository) GetSize() int {
 	return len(r.shortToOriginal)
 }
 
+// Close закрывает хранилище
 func (r *DoubleMapsRepository) Close() error {
 	if r.jsonStorage != nil {
 		return r.jsonStorage.Close()

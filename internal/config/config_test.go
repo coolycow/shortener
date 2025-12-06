@@ -8,6 +8,7 @@ import (
 
 func TestConfig(t *testing.T) {
 	fileStoragePath := getDefaultStoragePath()
+	databaseDSN := getDefaultDatabaseDSN()
 
 	tests := []struct {
 		name string
@@ -26,6 +27,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -40,6 +42,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -54,6 +57,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -68,6 +72,22 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
+			},
+		},
+		{
+			name: "Database DSN",
+			args: []string{"-d", "test"},
+			want: Config{
+				Host:                              "127.0.0.1",
+				Port:                              8080,
+				BaseURL:                           "http://127.0.0.1:8080",
+				RandomStringLength:                6,
+				RandomStringMaxLength:             100,
+				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
+				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       "test",
 			},
 		},
 		{
@@ -82,6 +102,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -96,6 +117,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -110,6 +132,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 5000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -131,6 +154,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 9,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -148,6 +172,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -166,6 +191,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -180,6 +206,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "debug",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -198,6 +225,7 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "warn",
 				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
 			},
 		},
 		{
@@ -214,6 +242,24 @@ func TestConfig(t *testing.T) {
 				RandomStringMaxGenerationAttempts: 1000,
 				LogLevel:                          "info",
 				FileStoragePath:                   "test.json",
+				DatabaseDSN:                       databaseDSN,
+			},
+		},
+		{
+			name: "Env: database DSN",
+			env: map[string]string{
+				"DATABASE_DSN": "test",
+			},
+			want: Config{
+				Host:                              "127.0.0.1",
+				Port:                              8080,
+				BaseURL:                           "http://127.0.0.1:8080",
+				RandomStringLength:                6,
+				RandomStringMaxLength:             100,
+				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
+				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       "test",
 			},
 		},
 	}

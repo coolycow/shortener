@@ -20,6 +20,7 @@ type Config struct {
 	RandomStringMaxGenerationAttempts int    `env:"RANDOM_STRING_MAX_GENERATION_ATTEMPTS"`
 	LogLevel                          string `env:"LOG_LEVEL"`
 	FileStoragePath                   string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN                       string `env:"DATABASE_DSN"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -37,6 +38,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("RandomStringMaxGenerationAttempts: %d\n", c.RandomStringMaxGenerationAttempts)
 	fmt.Printf("LogLevel: %s\n", c.LogLevel)
 	fmt.Printf("FileStoragePath: %s\n", c.FileStoragePath)
+	fmt.Printf("DatabaseDSN: %s\n", c.DatabaseDSN)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -64,48 +66,28 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.Host = host
 	}
 
-	if port := os.Getenv("PORT"); port != "" {
-		p, err := strconv.Atoi(port)
-
-		if err != nil {
-			return nil, fmt.Errorf("invalid env port %s", port)
-		}
-
-		config.Port = p
+	if err := parseIntFromEnv(config, "PORT",
+		func(c *Config, v int) { c.Port = v }); err != nil {
+		return nil, err
 	}
 
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
 		config.BaseURL = baseURL
 	}
 
-	if length := os.Getenv("RANDOM_STRING_LENGTH"); length != "" {
-		randomStringLength, err := strconv.Atoi(length)
-
-		if err != nil {
-			return nil, fmt.Errorf("invalid env random string length %s", length)
-		}
-
-		config.RandomStringLength = randomStringLength
+	if err := parseIntFromEnv(config, "RANDOM_STRING_LENGTH",
+		func(c *Config, v int) { c.RandomStringLength = v }); err != nil {
+		return nil, err
 	}
 
-	if maxLength := os.Getenv("RANDOM_STRING_MAX_LENGTH"); maxLength != "" {
-		randomStringMaxLength, err := strconv.Atoi(maxLength)
-
-		if err != nil {
-			return nil, fmt.Errorf("invalid env random string max length %s", maxLength)
-		}
-
-		config.RandomStringMaxLength = randomStringMaxLength
+	if err := parseIntFromEnv(config, "RANDOM_STRING_MAX_LENGTH",
+		func(c *Config, v int) { c.RandomStringMaxLength = v }); err != nil {
+		return nil, err
 	}
 
-	if maxAttempts := os.Getenv("RANDOM_STRING_MAX_GENERATION_ATTEMPTS"); maxAttempts != "" {
-		randomStringMaxGenerationAttempts, err := strconv.Atoi(maxAttempts)
-
-		if err != nil {
-			return nil, fmt.Errorf("invalid env random string max generation attempts %s", maxAttempts)
-		}
-
-		config.RandomStringMaxGenerationAttempts = randomStringMaxGenerationAttempts
+	if err := parseIntFromEnv(config, "RANDOM_STRING_MAX_GENERATION_ATTEMPTS",
+		func(c *Config, v int) { c.RandomStringMaxGenerationAttempts = v }); err != nil {
+		return nil, err
 	}
 
 	if serverAddress := os.Getenv("SERVER_ADDRESS"); serverAddress != "" {
@@ -125,6 +107,10 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 
 	if fileStoragePath := os.Getenv("FILE_STORAGE_PATH"); fileStoragePath != "" {
 		config.FileStoragePath = fileStoragePath
+	}
+
+	if databaseDSN := os.Getenv("DATABASE_DSN"); databaseDSN != "" {
+		config.DatabaseDSN = databaseDSN
 	}
 
 	return config, nil
@@ -148,6 +134,8 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 
 	flagSet.StringVarP(&config.FileStoragePath, "file-storage-path", "f", getDefaultStoragePath(), "file storage path")
 
+	flagSet.StringVarP(&config.DatabaseDSN, "database-dsn", "d", getDefaultDatabaseDSN(), "database DSN")
+
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))
 
@@ -162,6 +150,18 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 
 	// Возвращаем адрес переменной config
 	return &config, nil
+}
+
+// parseIntFromEnv парсит int-значение из переменной окружения и устанавливает его в поле конфигурации
+func parseIntFromEnv(config *Config, envKey string, setter func(*Config, int)) error {
+	if value := os.Getenv(envKey); value != "" {
+		intValue, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid env %s %s", envKey, value)
+		}
+		setter(config, intValue)
+	}
+	return nil
 }
 
 // parseAddress отдельная функция для парсинга адреса в виде одной строки
@@ -237,7 +237,7 @@ func splitServerAddress(address string) (string, int, error) {
 	return host, port, nil
 }
 
-// Получаем директорию, где находится исполняемый файл
+// getDefaultStoragePath Получаем директорию, где находится исполняемый файл
 func getDefaultStoragePath() string {
 	exe, err := os.Executable()
 
@@ -246,4 +246,9 @@ func getDefaultStoragePath() string {
 	}
 
 	return filepath.Join(filepath.Dir(exe), "urls.json")
+}
+
+// getDefaultDatabaseDSN Стандартные настройки подключения к БД
+func getDefaultDatabaseDSN() string {
+	return "host=localhost user=shortener password=qwerty dbname=shortener sslmode=disable"
 }
