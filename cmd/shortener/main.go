@@ -26,8 +26,20 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 
-	// Инициализируем репозиторий и роутер
-	repo := repository.NewDoubleMapsRepository(cfg.FileStoragePath)
+	// Инициализируем репозиторий
+	var repo repository.URLRepository
+	if cfg.DatabaseDSN != "" {
+		repo, err = repository.NewPostgresRepository(cfg.DatabaseDSN)
+
+		if err != nil {
+			log.Fatalf("Failed to initialize postgres repository: %v", err)
+		}
+
+		logger.Log.Info("Initialized postgres repository", zap.String("dsn", cfg.DatabaseDSN))
+	} else {
+		repo = repository.NewDoubleMapsRepository(cfg.FileStoragePath)
+		logger.Log.Info("Initialized doublemaps repository", zap.String("path", cfg.FileStoragePath))
+	}
 
 	// В конце работы приложения необходимо правильно закрыть хранилище.
 	defer func() {
@@ -36,6 +48,7 @@ func main() {
 		}
 	}()
 
+	// Инициализируем роутер
 	r := router.NewRouter(cfg, repo)
 
 	// Получаем адрес сервера из настроек и запускаем сервер

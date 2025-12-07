@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/coolycow/shortener/internal/logger"
@@ -36,53 +37,57 @@ func NewDoubleMapsRepository(filename string) *DoubleMapsRepository {
 		return repository
 	}
 
-	logger.Log.Info("Load " + filename + " successfully (" + strconv.Itoa(repository.GetSize()) + ")")
+	logger.Log.Info("Load " + filename + " successfully (" +
+		strconv.Itoa(repository.GetSize(context.Background())) + ")")
 
 	return repository
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) AddURL(shortURL string, originalURL string) {
+func (r *DoubleMapsRepository) AddURL(_ context.Context, shortURL string, originalURL string) error {
 	r.shortToOriginal[shortURL] = originalURL
 	r.originalToShort[originalURL] = shortURL
+	return nil
 }
 
 // SaveURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) SaveURL(shortURL string, originalURL string) {
-	r.AddURL(shortURL, originalURL)
+func (r *DoubleMapsRepository) SaveURL(ctx context.Context, shortURL string, originalURL string) error {
+	if r.jsonStorage != nil {
+		err := r.jsonStorage.Write(ShortURL{
+			UUID:        uuid.New().String(),
+			ShortURL:    shortURL,
+			OriginalURL: originalURL,
+		})
 
-	err := r.jsonStorage.Write(ShortURL{
-		UUID:        uuid.New().String(),
-		ShortURL:    shortURL,
-		OriginalURL: originalURL,
-	})
-
-	if err != nil {
-		logger.Log.Warn("Error saving url", zap.Error(err))
-		return
+		if err != nil {
+			logger.Log.Warn("Error saving url", zap.Error(err))
+			return err
+		}
 	}
+
+	return r.AddURL(ctx, shortURL, originalURL)
 }
 
 // GetOriginalURL получает оригинальный URL по короткому
-func (r *DoubleMapsRepository) GetOriginalURL(shortURL string) (string, bool) {
+func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, shortURL string) (string, bool) {
 	originalURL, exists := r.shortToOriginal[shortURL]
 	return originalURL, exists
 }
 
 // GetShortURL получает короткий URL по оригинальному
-func (r *DoubleMapsRepository) GetShortURL(originalURL string) (string, bool) {
+func (r *DoubleMapsRepository) GetShortURL(_ context.Context, originalURL string) (string, bool) {
 	shortURL, exists := r.originalToShort[originalURL]
 	return shortURL, exists
 }
 
 // IsShortURLExists проверяет, существует ли короткий URL
-func (r *DoubleMapsRepository) IsShortURLExists(shortURL string) bool {
+func (r *DoubleMapsRepository) IsShortURLExists(_ context.Context, shortURL string) bool {
 	_, exists := r.shortToOriginal[shortURL]
 	return exists
 }
 
 // GetSize возвращает размер хранилища
-func (r *DoubleMapsRepository) GetSize() int {
+func (r *DoubleMapsRepository) GetSize(_ context.Context) int {
 	return len(r.shortToOriginal)
 }
 

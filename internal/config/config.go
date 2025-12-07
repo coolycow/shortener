@@ -127,7 +127,7 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.StringVarP(&config.BaseURL, "base", "b", "http://127.0.0.1:8080", "base url")
 
 	flagSet.IntVarP(&config.RandomStringLength, "random-length", "l", 6, "random string length")
-	flagSet.IntVarP(&config.RandomStringMaxLength, "random-max-length", "m", 100, "random string max length")
+	flagSet.IntVarP(&config.RandomStringMaxLength, "random-max-length", "m", 255, "random string max length")
 	flagSet.IntVarP(&config.RandomStringMaxGenerationAttempts, "random-attempts", "t", 1000, "max generation attempts")
 
 	flagSet.StringVarP(&config.LogLevel, "log-level", "e", "info", "log level")
@@ -250,5 +250,5 @@ func getDefaultStoragePath() string {
 
 // getDefaultDatabaseDSN Стандартные настройки подключения к БД
 func getDefaultDatabaseDSN() string {
-	return "host=localhost user=shortener password=qwerty dbname=shortener sslmode=disable"
+	return ""
 }

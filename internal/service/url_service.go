@@ -1,18 +1,20 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/coolycow/shortener/internal/config"
 	error2 "github.com/coolycow/shortener/internal/error"
+	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/repository"
 )
 
 // URLService Сервис для работы в Handler
 type URLService interface {
-	GetOriginalURL(shortURL string) (string, error)
-	CreateShortURL(originalURL string) (string, error)
+	GetOriginalURL(ctx context.Context, shortURL string) (string, error)
+	CreateShortURL(ctx context.Context, originalURL string) (string, error)
 }
 
 // Реализация сервисного слоя
@@ -30,7 +32,7 @@ func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService
 }
 
 // GetOriginalURL возвращает исходную ссылку по короткому ключу
-func (s *urlService) GetOriginalURL(shortURL string) (string, error) {
+func (s *urlService) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	// Если shortURL пустой, то возвращаем ошибку 400
 	if shortURL == "" {
 		return "", error2.CustomError{
@@ -38,7 +40,7 @@ func (s *urlService) GetOriginalURL(shortURL string) (string, error) {
 			StatusCode: http.StatusBadRequest}
 	}
 
-	url, exists := s.repo.GetOriginalURL(shortURL)
+	url, exists := s.repo.GetOriginalURL(ctx, shortURL)
 
 	// Если запись не найдена, то возвращаем ошибку 404
 	if !exists {
@@ -52,14 +54,15 @@ func (s *urlService) GetOriginalURL(shortURL string) (string, error) {
 }
 
 // CreateShortURL создание новой пары короткой и исходной ссылки
-func (s *urlService) CreateShortURL(originalURL string) (string, error) {
+func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
 	// Проверяем существование оригинальной ссылки в репозитории
-	if key, exists := s.repo.GetShortURL(originalURL); exists {
+	if key, exists := s.repo.GetShortURL(ctx, originalURL); exists {
 		return s.cfg.BaseURL + "/" + key, nil
 	}
 
 	// Генерируем короткую ссылку заданной в настройках длины и гарантируем её уникальность
 	key, err := CreateUniqueStringForURL(
+		ctx,
 		s.repo,
 		s.cfg.RandomStringLength,
 		s.cfg.RandomStringMaxLength,
@@ -74,7 +77,15 @@ func (s *urlService) CreateShortURL(originalURL string) (string, error) {
 	}
 
 	// Сохраняем короткую ссылку в репозитории
-	s.repo.SaveURL(key, originalURL)
+	err = s.repo.SaveURL(ctx, key, originalURL)
+
+	if err != nil {
+		logger.Log.Error(err.Error())
+		return "", error2.CustomError{
+			Message:    "Internal Server Error",
+			StatusCode: http.StatusInternalServerError,
+		}
+	}
 
 	return s.cfg.BaseURL + "/" + key, nil
 }

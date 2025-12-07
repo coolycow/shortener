@@ -62,7 +62,7 @@ func PostAPIShortenHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		shortURL, err := service.CreateShortURL(validURL.String())
+		shortURL, err := service.CreateShortURL(c.Request.Context(), validURL.String())
 
 		if err != nil {
 			logger.Log.Debug("cannot create short URL", zap.Error(err))

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 )
@@ -29,7 +30,9 @@ func (s *JSONStorage) Load(repo URLRepository) error {
 			return err
 		}
 
-		repo.AddURL(url.ShortURL, url.OriginalURL)
+		if err := repo.AddURL(context.Background(), url.ShortURL, url.OriginalURL); err != nil {
+			return err
+		}
 	}
 
 	return nil
