@@ -90,7 +90,7 @@ func (r *DoubleMapsRepository) SaveURL(ctx context.Context, originalURL string, 
 	// Если есть файловое хранилище, то дублируем в него
 	if r.jsonStorage != nil {
 		err := r.jsonStorage.Write(model.ShortURL{
-			CorrelationId: uuid.New().String(),
+			CorrelationID: uuid.New().String(),
 			Key:           key,
 			OriginalURL:   originalURL,
 		})

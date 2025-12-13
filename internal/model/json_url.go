@@ -12,7 +12,7 @@ import (
 )
 
 type ShortURL struct {
-	CorrelationId string `json:"correlation_id"`
+	CorrelationID string `json:"correlation_id"`
 	OriginalURL   string `json:"original_url"`
 	Key           string `json:"key"`
 }
@@ -40,7 +40,7 @@ func (s *ShortURL) UnmarshalJSON(data []byte) (err error) {
 // ToAPIShortenBatchResponse переводит в подходящую структуру ответа
 func (s *ShortURL) ToAPIShortenBatchResponse(baseURL string) APIShortenBatchResponse {
 	return APIShortenBatchResponse{
-		CorrelationId: s.CorrelationId,
+		CorrelationID: s.CorrelationID,
 		ShortURL:      baseURL + `/` + s.Key,
 	}
 }
