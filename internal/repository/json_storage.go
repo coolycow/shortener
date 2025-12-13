@@ -4,13 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-)
 
-type ShortURL struct {
-	UUID        string `json:"uuid"`
-	OriginalURL string `json:"original_url"`
-	ShortURL    string `json:"short_url"`
-}
+	"github.com/coolycow/shortener/internal/model"
+)
 
 type JSONStorage struct {
 	file    *os.File
@@ -24,13 +20,13 @@ func (s *JSONStorage) Close() error {
 
 func (s *JSONStorage) Load(repo URLRepository) error {
 	for s.decoder.More() {
-		var url ShortURL
+		var url model.ShortURL
 
 		if err := s.decoder.Decode(&url); err != nil {
 			return err
 		}
 
-		if err := repo.AddURL(context.Background(), url.ShortURL, url.OriginalURL); err != nil {
+		if _, err := repo.AddURL(context.Background(), url.OriginalURL, url.Key); err != nil {
 			return err
 		}
 	}
@@ -38,7 +34,7 @@ func (s *JSONStorage) Load(repo URLRepository) error {
 	return nil
 }
 
-func (s *JSONStorage) Write(url ShortURL) error {
+func (s *JSONStorage) Write(url model.ShortURL) error {
 	err := s.encoder.Encode(url)
 
 	if err != nil {

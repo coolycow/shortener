@@ -38,7 +38,7 @@ func CreateUniqueStringForURL(
 	i := 0
 	key := generate(length)
 
-	for repo.IsShortURLExists(ctx, key) {
+	for repo.IsKeyExists(ctx, key) {
 		i += 1
 		key = generate(length)
 

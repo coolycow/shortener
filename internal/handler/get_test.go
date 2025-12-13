@@ -35,8 +35,8 @@ func setupTestService() service.URLService {
 		"AAbbCC3$#": "https:/vk.com",
 	}
 
-	for id, url := range defaultURLs {
-		_ = repo.SaveURL(context.Background(), id, url)
+	for key, url := range defaultURLs {
+		_, _ = repo.SaveURL(context.Background(), url, key)
 	}
 
 	return service.NewURLService(cfg, repo)

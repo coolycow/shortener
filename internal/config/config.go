@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,6 +56,24 @@ func InitConfig() (*Config, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Проверяем параметры генерации случайных строк.
+	// Параметры должны иметь корректные значения, чтобы избежать ошибок при генерации и сохранении.
+	if config.RandomStringLength <= 0 || config.RandomStringLength > 255 {
+		return nil, errors.New("random string length must be between 1 and 255")
+	}
+
+	if config.RandomStringMaxLength <= 0 || config.RandomStringMaxLength > 255 {
+		return nil, errors.New("random string max length must be between 1 and 255")
+	}
+
+	if config.RandomStringMaxGenerationAttempts <= 0 || config.RandomStringMaxGenerationAttempts > 1000 {
+		return nil, errors.New("random string max generation attempts must be between 1 and 1000")
+	}
+
+	if config.RandomStringMaxLength < config.RandomStringLength {
+		return nil, errors.New("random string max length must be greater than or equal to random string length")
 	}
 
 	return config, nil
