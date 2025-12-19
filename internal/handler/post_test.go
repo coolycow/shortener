@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -89,6 +90,17 @@ func TestPostHandler(t *testing.T) {
 			},
 		},
 		{
+			name:        "Duplicate URL",
+			method:      http.MethodPost,
+			body:        "https://duplicate-example.com",
+			contentType: "text/plain",
+			want: want{
+				code:        409,
+				contentType: "text/plain",
+				body:        "",
+			},
+		},
+		{
 			name:        "Invalid method",
 			method:      http.MethodGet,
 			body:        "https://example.com",
@@ -157,6 +169,10 @@ func TestPostHandler(t *testing.T) {
 			defer repo.Close()
 
 			srv := service.NewURLService(cfg, repo)
+
+			if test.name == "Duplicate URL" {
+				_, _ = repo.SaveURL(context.Background(), test.body, "Dup123456")
+			}
 
 			gin.SetMode(gin.TestMode)
 

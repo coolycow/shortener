@@ -33,10 +33,11 @@ func setupTestService() service.URLService {
 		"AAbbCC2":   "https://rambler.com",
 		"AAbbCC3":   "https://yandex.com",
 		"AAbbCC3$#": "https:/vk.com",
+		"Dup123456": "https://duplicate-example.com",
 	}
 
-	for key, url := range defaultURLs {
-		_, _ = repo.SaveURL(context.Background(), url, key)
+	for key, u := range defaultURLs {
+		_, _ = repo.SaveURL(context.Background(), u, key)
 	}
 
 	return service.NewURLService(cfg, repo)

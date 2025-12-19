@@ -58,11 +58,6 @@ func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, er
 
 // CreateShortURL создание новой пары короткой и исходной ссылки
 func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
-	// Проверяем существование оригинальной ссылки в репозитории
-	if key, exists := s.repo.GetKey(ctx, originalURL); exists {
-		return s.cfg.BaseURL + "/" + key, nil
-	}
-
 	// Генерируем короткую ссылку заданной в настройках длины и гарантируем её уникальность
 	key, err := CreateUniqueStringForURL(
 		ctx,
@@ -88,6 +83,13 @@ func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (st
 		return "", error2.CustomError{
 			Message:    "Internal Server Error",
 			StatusCode: http.StatusInternalServerError,
+		}
+	}
+
+	if key != resultKey {
+		return "", error2.CustomError{
+			Message:    s.cfg.BaseURL + "/" + resultKey,
+			StatusCode: http.StatusConflict,
 		}
 	}
 
