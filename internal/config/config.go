@@ -22,6 +22,7 @@ type Config struct {
 	LogLevel                          string `env:"LOG_LEVEL"`
 	FileStoragePath                   string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN                       string `env:"DATABASE_DSN"`
+	RunMigrations                     bool   `env:"RUN_MIGRATIONS"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -40,6 +41,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("LogLevel: %s\n", c.LogLevel)
 	fmt.Printf("FileStoragePath: %s\n", c.FileStoragePath)
 	fmt.Printf("DatabaseDSN: %s\n", c.DatabaseDSN)
+	fmt.Printf("RunMigrations: %t\n", c.RunMigrations)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -133,6 +135,10 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.DatabaseDSN = databaseDSN
 	}
 
+	if runMigrations := os.Getenv("RUN_MIGRATIONS"); runMigrations != "" {
+		config.RunMigrations, _ = strconv.ParseBool(runMigrations)
+	}
+
 	return config, nil
 }
 
@@ -155,6 +161,7 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.StringVarP(&config.FileStoragePath, "file-storage-path", "f", getDefaultStoragePath(), "file storage path")
 
 	flagSet.StringVarP(&config.DatabaseDSN, "database-dsn", "d", getDefaultDatabaseDSN(), "database DSN")
+	flagSet.BoolVarP(&config.RunMigrations, "run-migrations", "r", false, "run migrations")
 
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))

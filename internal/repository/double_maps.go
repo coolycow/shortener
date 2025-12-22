@@ -20,6 +20,10 @@ type DoubleMapsRepository struct {
 	jsonStorage   *JSONStorage
 }
 
+func (r *DoubleMapsRepository) RunMigrations() error {
+	return nil
+}
+
 // NewDoubleMapsRepository NewURLRepository создает новый экземпляр URLRepository
 func NewDoubleMapsRepository(filename string) *DoubleMapsRepository {
 	repository := &DoubleMapsRepository{
@@ -48,9 +52,9 @@ func NewDoubleMapsRepository(filename string) *DoubleMapsRepository {
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) AddURL(_ context.Context, originalURL string, key string) (string, error) {
+func (r *DoubleMapsRepository) AddURL(_ context.Context, originalURL string, key string) (string, bool, error) {
 	if (key == "") || (originalURL == "") {
-		return "", errors.New("key or originalURL is empty")
+		return "", false, errors.New("key or originalURL is empty")
 	}
 
 	r.mutex.Lock()
@@ -58,29 +62,29 @@ func (r *DoubleMapsRepository) AddURL(_ context.Context, originalURL string, key
 
 	// Проверяем существование originalURL и если она есть, то возвращаем существующий ключ
 	if existingKey, ok := r.originalToKey[originalURL]; ok {
-		return existingKey, nil
+		return existingKey, false, nil
 	}
 
 	r.originalToKey[originalURL] = key
 	r.keyToOriginal[key] = originalURL
 
-	return key, nil
+	return key, true, nil
 
 }
 
 // SaveURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) SaveURL(ctx context.Context, originalURL string, key string) (string, error) {
+func (r *DoubleMapsRepository) SaveURL(_ context.Context, originalURL string, key string) (string, bool, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
 	// Проверяем существование URL и возвращаем её ключ
 	if existingKey, exists := r.originalToKey[originalURL]; exists {
-		return existingKey, nil
+		return existingKey, true, nil
 	}
 
 	// Проверяем существование ключа и возвращаем ошибку
 	if _, exists := r.keyToOriginal[key]; exists {
-		return "", errors.New("key already exists")
+		return "", false, errors.New("key already exists")
 	}
 
 	// Создаём пары
@@ -97,18 +101,18 @@ func (r *DoubleMapsRepository) SaveURL(ctx context.Context, originalURL string, 
 
 		if err != nil {
 			logger.Log.Warn("Error saving url", zap.Error(err))
-			return "", err
+			return "", false, err
 		}
 	}
 
-	return key, nil
+	return key, false, nil
 }
 
 // SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
 func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, URLs []model.ShortURL) error {
 	for i, u := range URLs {
-		resultKey, err := r.AddURL(ctx, u.OriginalURL, u.Key)
+		resultKey, _, err := r.AddURL(ctx, u.OriginalURL, u.Key)
 
 		if err != nil {
 			logger.Log.Warn("Error saving url", zap.Error(err))
@@ -148,6 +152,30 @@ func (r *DoubleMapsRepository) GetKey(_ context.Context, originalURL string) (st
 	return shortURL, exists
 }
 
+// GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
+func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, URLs []model.ShortURL) ([]model.ShortURL, error) {
+	// Если массив пустой, то просто возвращаем пустой результат
+	if len(URLs) == 0 {
+		return []model.ShortURL{}, nil
+	}
+
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var result []model.ShortURL
+	for _, u := range URLs {
+		if shortURL, exists := r.originalToKey[u.OriginalURL]; exists {
+			result = append(result, model.ShortURL{
+				CorrelationID: u.CorrelationID,
+				OriginalURL:   u.OriginalURL,
+				Key:           shortURL,
+			})
+		}
+	}
+
+	return result, nil
+}
+
 // IsKeyExists проверяет, существует ли ключ
 func (r *DoubleMapsRepository) IsKeyExists(_ context.Context, key string) bool {
 	r.mutex.RLock()
@@ -170,5 +198,10 @@ func (r *DoubleMapsRepository) Close() error {
 	if r.jsonStorage != nil {
 		return r.jsonStorage.Close()
 	}
+	return nil
+}
+
+// Ping проверяет доступность хранилища
+func (r *DoubleMapsRepository) Ping(_ context.Context) error {
 	return nil
 }

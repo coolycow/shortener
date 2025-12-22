@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -207,8 +206,6 @@ func TestPostAPIShortenBatchHandler(t *testing.T) {
 			router.ServeHTTP(w, request)
 
 			result := w.Result()
-
-			log.Println(result.Body)
 
 			// Проверяем, что код ответа и тип контента соответствуют ожиданиям
 			assert.Equal(t, test.want.code, result.StatusCode)

@@ -171,7 +171,7 @@ func TestPostHandler(t *testing.T) {
 			srv := service.NewURLService(cfg, repo)
 
 			if test.name == "Duplicate URL" {
-				_, _ = repo.SaveURL(context.Background(), test.body, "Dup123456")
+				_, _, _ = repo.SaveURL(context.Background(), test.body, "Dup123456")
 			}
 
 			gin.SetMode(gin.TestMode)

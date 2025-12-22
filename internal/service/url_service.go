@@ -18,6 +18,7 @@ type URLService interface {
 	CreateShortURL(ctx context.Context, originalURL string) (string, error)
 	CreateManyShortURL(ctx context.Context, URLs []model.ShortURL) error
 	GetBaseURL() string
+	PingRepository(ctx context.Context) error
 }
 
 // Реализация сервисного слоя
@@ -76,7 +77,8 @@ func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (st
 
 	// Сохраняем короткую ссылку в репозитории.
 	// В случае дублирования originalURL в момент сохранения будет использован уже существующий ключ.
-	resultKey, err := s.repo.SaveURL(ctx, originalURL, key)
+	// hasConflict показывает было ли реальное добавление или ссылка уже была в репозитории
+	resultKey, hasConflict, err := s.repo.SaveURL(ctx, originalURL, key)
 
 	if err != nil {
 		logger.Log.Error(err.Error())
@@ -86,7 +88,7 @@ func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (st
 		}
 	}
 
-	if key != resultKey {
+	if hasConflict {
 		return "", error2.CustomError{
 			Message:    s.cfg.BaseURL + "/" + resultKey,
 			StatusCode: http.StatusConflict,
@@ -99,14 +101,35 @@ func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (st
 // CreateManyShortURL создание множества пар.
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
 func (s *urlService) CreateManyShortURL(ctx context.Context, URLs []model.ShortURL) error {
-	for i, u := range URLs {
-		// Проверяем существование ключа для URL.
-		if key, exists := s.repo.GetKey(ctx, u.OriginalURL); exists {
-			URLs[i].Key = key
-			continue
-		}
+	// Получаем все уже существующие ключи для переданного массива ShortURL
+	exists, err := s.repo.GetManyKeys(ctx, URLs)
 
-		// Генерируем ключи для несуществующих URL.
+	if err != nil {
+		return error2.CustomError{
+			Message:    "Internal Server Error",
+			StatusCode: http.StatusInternalServerError,
+		}
+	}
+
+	// Создаем map с ключом в виде OriginalURL для быстрого поиска существующих URL
+	existingURLs := make(map[string]string, len(exists))
+
+	for _, existing := range exists {
+		existingURLs[existing.OriginalURL] = existing.Key
+	}
+
+	// Разделяем URL на существующие и новые в виде массива newURLs
+	var newURLs []model.ShortURL
+	for i, u := range URLs {
+		if key, found := existingURLs[u.OriginalURL]; found {
+			URLs[i].Key = key
+		} else {
+			newURLs = append(newURLs, u)
+		}
+	}
+
+	for i := range newURLs {
+		// Генерируем ключ для URL.
 		key, err := CreateUniqueStringForURL(
 			ctx,
 			s.repo,
@@ -121,8 +144,13 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, URLs []model.ShortU
 			}
 		}
 
-		// Присваиваем URL её ключ.
-		URLs[i].Key = key
+		// Находим индекс в исходном массиве и обновляем ключ
+		for j := range URLs {
+			if URLs[j].OriginalURL == newURLs[i].OriginalURL && URLs[j].Key == "" {
+				URLs[j].Key = key
+				break
+			}
+		}
 	}
 
 	return s.repo.SaveManyURL(ctx, URLs)
@@ -131,4 +159,8 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, URLs []model.ShortU
 // GetBaseURL просто возвращает базовый URL
 func (s *urlService) GetBaseURL() string {
 	return s.cfg.BaseURL
+}
+
+func (s *urlService) PingRepository(ctx context.Context) error {
+	return s.repo.Ping(ctx)
 }

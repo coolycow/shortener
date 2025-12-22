@@ -186,7 +186,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			srv := service.NewURLService(cfg, repo)
 
 			if test.name == "Duplicate URL" {
-				_, _ = repo.SaveURL(context.Background(), test.url, "Dup123456")
+				_, _, _ = repo.SaveURL(context.Background(), test.url, "Dup123456")
 			}
 
 			gin.SetMode(gin.TestMode)

@@ -7,6 +7,8 @@ import (
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
+	"github.com/coolycow/shortener/internal/repository"
+	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +35,7 @@ func TestPingHandler(t *testing.T) {
 		{
 			name:   "Invalid DSN",
 			method: "GET",
-			dsn:    "host=localhost port=5432 user=shortener password=shortener dbname=shortener sslmode=disable",
+			dsn:    "host=invalid port=9999 user=invalid password=shortener dbname=invalid sslmode=disable",
 			want: want{
 				code: 500,
 			},
@@ -62,11 +64,22 @@ func TestPingHandler(t *testing.T) {
 
 			cfg.DatabaseDSN = test.dsn
 
+			repo, err := repository.NewPostgresRepository(test.dsn)
+
+			if err != nil {
+				if test.want.code == 500 {
+					assert.Nil(t, repo)
+					return
+				}
+			}
+
+			srv := service.NewURLService(cfg, repo)
+
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
-			router.GET("/ping", PingHandler(cfg))
+			router.GET("/ping", PingHandler(srv))
 
 			request := httptest.NewRequest(test.method, "/ping", nil)
 
@@ -75,7 +88,7 @@ func TestPingHandler(t *testing.T) {
 			router.ServeHTTP(w, request)
 
 			result := w.Result()
-			if err := result.Body.Close(); err != nil {
+			if err = result.Body.Close(); err != nil {
 				t.Error(err)
 			}
 

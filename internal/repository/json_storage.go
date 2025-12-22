@@ -26,7 +26,7 @@ func (s *JSONStorage) Load(repo URLRepository) error {
 			return err
 		}
 
-		if _, err := repo.AddURL(context.Background(), url.OriginalURL, url.Key); err != nil {
+		if _, _, err := repo.AddURL(context.Background(), url.OriginalURL, url.Key); err != nil {
 			return err
 		}
 	}

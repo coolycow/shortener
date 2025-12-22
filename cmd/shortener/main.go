@@ -36,6 +36,12 @@ func main() {
 		}
 
 		logger.Log.Info("Initialized postgres repository", zap.String("dsn", cfg.DatabaseDSN))
+
+		if cfg.RunMigrations {
+			if err = repo.RunMigrations(); err != nil {
+				log.Fatalf("Failed to run migrations: %v", err)
+			}
+		}
 	} else {
 		repo = repository.NewDoubleMapsRepository(cfg.FileStoragePath)
 		logger.Log.Info("Initialized doublemaps repository", zap.String("path", cfg.FileStoragePath))

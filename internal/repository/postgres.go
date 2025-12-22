@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
+	"strings"
 
 	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/model"
@@ -19,9 +22,11 @@ type PostgresRepository struct {
 	db *sql.DB
 }
 
-func runMigrations(db *sql.DB) error {
+func (r *PostgresRepository) RunMigrations() error {
+	logger.Log.Info("Running migrations")
+
 	// Создаем экземпляр драйвера для PostgreSQL
-	driver, err := pgx.WithInstance(db, &pgx.Config{})
+	driver, err := pgx.WithInstance(r.db, &pgx.Config{})
 	if err != nil {
 		return err
 	}
@@ -52,12 +57,10 @@ func NewPostgresRepository(DSN string) (*PostgresRepository, error) {
 	}
 
 	if err = db.Ping(); err != nil {
-		err = db.Close()
-		return nil, err
-	}
-
-	if err = runMigrations(db); err != nil {
-		err = db.Close()
+		closeErr := db.Close()
+		if closeErr != nil {
+			log.Printf("Error closing database: %v", closeErr)
+		}
 		return nil, err
 	}
 
@@ -65,33 +68,36 @@ func NewPostgresRepository(DSN string) (*PostgresRepository, error) {
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *PostgresRepository) AddURL(ctx context.Context, originalURL string, key string) (string, error) {
+func (r *PostgresRepository) AddURL(ctx context.Context, originalURL string, key string) (string, bool, error) {
 	return r.SaveURL(ctx, originalURL, key)
 }
 
-// SaveURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *PostgresRepository) SaveURL(ctx context.Context, originalURL string, key string) (string, error) {
+// SaveURL сохраняет соответствие между короткой и оригинальной ссылкой.
+// Возвращает реальный ключ, логический признак ошибки вставки (дублируется исходная URL), ошибку работы.
+func (r *PostgresRepository) SaveURL(ctx context.Context, originalURL string, key string) (string, bool, error) {
 	if (key == "") || (originalURL == "") {
-		return "", errors.New("key or originalURL is empty")
+		return "", false, errors.New("key or originalURL is empty")
 	}
 
 	if len(key) > 255 {
-		return "", errors.New("key is too long")
+		return "", false, errors.New("key is too long")
 	}
 
 	// Учитываем, что может произойти дублирование URL, поэтому мы возвращаем ключ который реально был использован.
+	// Дополнительно вернётся значение is_insert, которое будет равно true если это была новая вставка.
 	row := r.db.QueryRowContext(ctx,
-		"INSERT INTO urls (url, key) VALUES ($1, $2) ON CONFLICT (url) DO UPDATE SET key = urls.key RETURNING key",
+		"INSERT INTO urls (url, key) VALUES ($1, $2) ON CONFLICT (url) DO UPDATE SET key = urls.key RETURNING key, (xmax = 0) as is_insert",
 		originalURL, key)
 
 	var resultKey string
-	err := row.Scan(&resultKey)
+	var isInsert bool
+	err := row.Scan(&resultKey, &isInsert)
 
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	return resultKey, nil
+	return resultKey, !isInsert, nil
 }
 
 // SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
@@ -118,6 +124,8 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, URLs []model.Short
 	for i, u := range URLs {
 		if (u.Key == "") || (u.OriginalURL == "") {
 			tx.Rollback()
+			log.Println(u.Key)
+			log.Println(u.OriginalURL)
 			return errors.New("key or originalURL is empty")
 		}
 
@@ -165,6 +173,75 @@ func (r *PostgresRepository) GetKey(ctx context.Context, originalURL string) (st
 	return key, true
 }
 
+// GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
+func (r *PostgresRepository) GetManyKeys(ctx context.Context, URLs []model.ShortURL) ([]model.ShortURL, error) {
+	// Если массив пустой, то просто возвращаем пустой результат
+	if len(URLs) == 0 {
+		return []model.ShortURL{}, nil
+	}
+
+	// Извлекаем только OriginalURL из входного массива структур
+	originalURLs := make([]string, 0, len(URLs))
+	for _, u := range URLs {
+		if u.OriginalURL != "" {
+			originalURLs = append(originalURLs, u.OriginalURL)
+		}
+	}
+
+	if len(originalURLs) == 0 {
+		return []model.ShortURL{}, nil
+	}
+
+	// Подготавливаем данные для запроса
+	placeholders := make([]string, 0, len(originalURLs))
+	args := make([]interface{}, 0, len(originalURLs))
+
+	for i, u := range originalURLs {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		args = append(args, u)
+	}
+
+	query := fmt.Sprintf("SELECT url, key FROM urls WHERE url IN (%s)", strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.ShortURL
+
+	// Проходим по строкам и собираем ShortURL
+	for rows.Next() {
+		var url, key string
+		if err := rows.Scan(&url, &key); err != nil {
+			return nil, err
+		}
+
+		// Ищем соответствующий CorrelationID в исходном массиве
+		var correlationID string
+		for _, originalURL := range URLs {
+			if originalURL.OriginalURL == url {
+				correlationID = originalURL.CorrelationID
+				break
+			}
+		}
+
+		result = append(result, model.ShortURL{
+			CorrelationID: correlationID,
+			OriginalURL:   url,
+			Key:           key,
+		})
+	}
+
+	// Если произошла ошибка - возвращаем её
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // IsKeyExists проверяет, существует ли ключ
 func (r *PostgresRepository) IsKeyExists(ctx context.Context, key string) bool {
 	row := r.db.QueryRowContext(ctx, "select count(*) from urls where key = $1", key)
@@ -199,4 +276,9 @@ func (r *PostgresRepository) Close() error {
 		return r.db.Close()
 	}
 	return nil
+}
+
+// Ping проверяет доступность хранилища
+func (r *PostgresRepository) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
 }
