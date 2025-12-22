@@ -22,6 +22,18 @@ type PostgresRepository struct {
 	db *sql.DB
 }
 
+// checkTableExists проверяет, существует ли таблица
+func (r *PostgresRepository) checkTableExists(tableName string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = $1
+		)`, tableName).Scan(&exists)
+	return exists, err
+}
+
 func (r *PostgresRepository) RunMigrations() error {
 	logger.Log.Info("Running migrations")
 
@@ -64,7 +76,23 @@ func NewPostgresRepository(DSN string) (*PostgresRepository, error) {
 		return nil, err
 	}
 
-	return &PostgresRepository{db: db}, nil
+	repo := &PostgresRepository{db: db}
+
+	// Проверяем, существует ли таблица urls
+	tableExists, err := repo.checkTableExists("urls")
+	if err != nil {
+		return nil, err
+	}
+
+	if !tableExists {
+		err = repo.RunMigrations()
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return repo, nil
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
