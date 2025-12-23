@@ -1,0 +1,312 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+
+	"github.com/coolycow/shortener/internal/logger"
+	"github.com/coolycow/shortener/internal/model"
+	"go.uber.org/zap"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+)
+
+// PostgresRepository представляет репозиторий для хранения URL
+type PostgresRepository struct {
+	db *sql.DB
+}
+
+// checkTableExists проверяет, существует ли таблица
+func (r *PostgresRepository) checkTableExists(tableName string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = $1
+		)`, tableName).Scan(&exists)
+	return exists, err
+}
+
+func (r *PostgresRepository) RunMigrations() error {
+	logger.Log.Info("Running migrations")
+
+	// Создаем экземпляр драйвера для PostgreSQL
+	driver, err := pgx.WithInstance(r.db, &pgx.Config{})
+	if err != nil {
+		return err
+	}
+
+	// Указываем путь к директории с миграциями
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"pgx",
+		driver,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Применяем миграции
+	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+
+	return nil
+}
+
+// NewPostgresRepository создает новый экземпляр URLRepository
+func NewPostgresRepository(DSN string) (*PostgresRepository, error) {
+	db, err := sql.Open("pgx", DSN)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = db.Ping(); err != nil {
+		closeErr := db.Close()
+		if closeErr != nil {
+			log.Printf("Error closing database: %v", closeErr)
+		}
+		return nil, err
+	}
+
+	repo := &PostgresRepository{db: db}
+
+	// Проверяем, существует ли таблица urls
+	tableExists, err := repo.checkTableExists("urls")
+	if err != nil {
+		return nil, err
+	}
+
+	if !tableExists {
+		err = repo.RunMigrations()
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return repo, nil
+}
+
+// AddURL сохраняет соответствие между короткой и оригинальной ссылкой
+func (r *PostgresRepository) AddURL(ctx context.Context, originalURL string, key string) (string, bool, error) {
+	return r.SaveURL(ctx, originalURL, key)
+}
+
+// SaveURL сохраняет соответствие между короткой и оригинальной ссылкой.
+// Возвращает реальный ключ, логический признак ошибки вставки (дублируется исходная URL), ошибку работы.
+func (r *PostgresRepository) SaveURL(ctx context.Context, originalURL string, key string) (string, bool, error) {
+	if (key == "") || (originalURL == "") {
+		return "", false, errors.New("key or originalURL is empty")
+	}
+
+	if len(key) > 255 {
+		return "", false, errors.New("key is too long")
+	}
+
+	// Учитываем, что может произойти дублирование URL, поэтому мы возвращаем ключ который реально был использован.
+	// Дополнительно вернётся значение is_insert, которое будет равно true если это была новая вставка.
+	row := r.db.QueryRowContext(ctx,
+		"INSERT INTO urls (url, key) VALUES ($1, $2) ON CONFLICT (url) DO UPDATE SET key = urls.key RETURNING key, (xmax = 0) as is_insert",
+		originalURL, key)
+
+	var resultKey string
+	var isInsert bool
+	err := row.Scan(&resultKey, &isInsert)
+
+	if err != nil {
+		return "", false, err
+	}
+
+	return resultKey, !isInsert, nil
+}
+
+// SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
+// В массиве URLs происходит замена ключей в случае дублирования исходных URL.
+func (r *PostgresRepository) SaveManyURL(ctx context.Context, URLs []model.ShortURL) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+
+	if err != nil {
+		return err
+	}
+
+	// Подготавливаем запрос
+	stmt, err := tx.PrepareContext(ctx,
+		"INSERT INTO urls (url, key) VALUES ($1, $2) ON CONFLICT (url) DO UPDATE SET key = urls.key RETURNING key")
+
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	// В рамках транзакции проводим сохранение пар URL и ключа
+	// Если в момент сохранения произойдет дублирование URL, то мы это учтём.
+	for i, u := range URLs {
+		if (u.Key == "") || (u.OriginalURL == "") {
+			tx.Rollback()
+			log.Println(u.Key)
+			log.Println(u.OriginalURL)
+			return errors.New("key or originalURL is empty")
+		}
+
+		var resultKey string
+		row := stmt.QueryRowContext(ctx, u.OriginalURL, u.Key)
+		err = row.Scan(&resultKey)
+
+		if err != nil {
+			logger.Log.Warn("Error saving url", zap.Error(err))
+			tx.Rollback()
+			return err
+		}
+
+		URLs[i].Key = resultKey
+	}
+
+	return tx.Commit()
+}
+
+// GetOriginalURL получает оригинальный URL по ключу
+func (r *PostgresRepository) GetOriginalURL(ctx context.Context, key string) (string, bool) {
+	row := r.db.QueryRowContext(ctx, "select url from urls where key = $1", key)
+
+	var url string
+	err := row.Scan(&url)
+
+	if err != nil {
+		return "", false
+	}
+
+	return url, true
+}
+
+// GetKey получает ключ по оригинальному URL
+func (r *PostgresRepository) GetKey(ctx context.Context, originalURL string) (string, bool) {
+	row := r.db.QueryRowContext(ctx, "select key from urls where url = $1", originalURL)
+
+	var key string
+	err := row.Scan(&key)
+
+	if err != nil {
+		return "", false
+	}
+
+	return key, true
+}
+
+// GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
+func (r *PostgresRepository) GetManyKeys(ctx context.Context, URLs []model.ShortURL) ([]model.ShortURL, error) {
+	// Если массив пустой, то просто возвращаем пустой результат
+	if len(URLs) == 0 {
+		return []model.ShortURL{}, nil
+	}
+
+	// Извлекаем только OriginalURL из входного массива структур
+	originalURLs := make([]string, 0, len(URLs))
+	for _, u := range URLs {
+		if u.OriginalURL != "" {
+			originalURLs = append(originalURLs, u.OriginalURL)
+		}
+	}
+
+	if len(originalURLs) == 0 {
+		return []model.ShortURL{}, nil
+	}
+
+	// Подготавливаем данные для запроса
+	placeholders := make([]string, 0, len(originalURLs))
+	args := make([]interface{}, 0, len(originalURLs))
+
+	for i, u := range originalURLs {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		args = append(args, u)
+	}
+
+	query := fmt.Sprintf("SELECT url, key FROM urls WHERE url IN (%s)", strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.ShortURL
+
+	// Проходим по строкам и собираем ShortURL
+	for rows.Next() {
+		var url, key string
+		if err := rows.Scan(&url, &key); err != nil {
+			return nil, err
+		}
+
+		// Ищем соответствующий CorrelationID в исходном массиве
+		var correlationID string
+		for _, originalURL := range URLs {
+			if originalURL.OriginalURL == url {
+				correlationID = originalURL.CorrelationID
+				break
+			}
+		}
+
+		result = append(result, model.ShortURL{
+			CorrelationID: correlationID,
+			OriginalURL:   url,
+			Key:           key,
+		})
+	}
+
+	// Если произошла ошибка - возвращаем её
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// IsKeyExists проверяет, существует ли ключ
+func (r *PostgresRepository) IsKeyExists(ctx context.Context, key string) bool {
+	row := r.db.QueryRowContext(ctx, "select count(*) from urls where key = $1", key)
+
+	var count int64
+	err := row.Scan(&count)
+
+	if err != nil {
+		return false
+	}
+
+	return count > 0
+}
+
+// GetSize возвращает размер хранилища
+func (r *PostgresRepository) GetSize(ctx context.Context) int {
+	row := r.db.QueryRowContext(ctx, "select count(*) from urls")
+
+	count := 0
+	err := row.Scan(&count)
+
+	if err != nil {
+		logger.Log.Error("Error scanning database", zap.Error(err))
+	}
+
+	return count
+}
+
+// Close закрывает хранилище
+func (r *PostgresRepository) Close() error {
+	if r.db != nil {
+		return r.db.Close()
+	}
+	return nil
+}
+
+// Ping проверяет доступность хранилища
+func (r *PostgresRepository) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
+}

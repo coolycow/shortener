@@ -2,17 +2,15 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
-
-	compgzip "compress/gzip"
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
@@ -26,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostAPIShortenHandler(t *testing.T) {
+func TestPostAPIShortenBatchHandler(t *testing.T) {
 	type want struct {
 		code        int
 		contentType string
@@ -38,14 +36,14 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		method          string
 		contentType     string
 		contentEncoding string
-		url             string
+		urls            []string
 		gzip            bool
 		want            want
 	}{
 		{
 			name:        "Create new",
 			method:      http.MethodPost,
-			url:         `https://practicum.yandex.ru`,
+			urls:        []string{`https://practicum.yandex.ru`},
 			contentType: "application/json",
 			want: want{
 				code:        201,
@@ -55,7 +53,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "URL without domain",
 			method:      http.MethodPost,
-			url:         `https://practicum`,
+			urls:        []string{`https://practicum`},
 			contentType: "application/json",
 			want: want{
 				code:        201,
@@ -65,7 +63,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "Content type with charset",
 			method:      http.MethodPost,
-			url:         `https://practicum.yandex.ru`,
+			urls:        []string{`https://practicum.yandex.ru`},
 			contentType: "application/json; charset=utf-8",
 			want: want{
 				code:        201,
@@ -75,7 +73,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "URL with params",
 			method:      http.MethodPost,
-			url:         `https://example.com?a=1,2,3&b=true&c=filter[abd]`,
+			urls:        []string{`https://example.com?a=1,2,3&b=true&c=filter[abd]`},
 			contentType: "application/json; charset=utf-8",
 			want: want{
 				code:        201,
@@ -85,7 +83,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "Cyrillic URL",
 			method:      http.MethodPost,
-			url:         `https://пример.рф/путь?параметр=значение`,
+			urls:        []string{`https://пример.рф/путь?параметр=значение`},
 			contentType: "application/json; charset=utf-8",
 			want: want{
 				code:        201,
@@ -93,19 +91,9 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			},
 		},
 		{
-			name:        "Duplicate URL",
-			method:      http.MethodPost,
-			url:         `https://duplicate-example.com`,
-			contentType: "application/json",
-			want: want{
-				code:        409,
-				contentType: "application/json",
-			},
-		},
-		{
 			name:        "Invalid method",
 			method:      http.MethodGet,
-			url:         `https://example.com`,
+			urls:        []string{`https://example.com`},
 			contentType: "application/json",
 			want: want{
 				code:        404,
@@ -116,7 +104,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "Invalid content type",
 			method:      http.MethodPost,
-			url:         `https://example.com`,
+			urls:        []string{`https://example.com`},
 			contentType: "text/plain",
 			want: want{
 				code:        415,
@@ -127,7 +115,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "Empty URL",
 			method:      http.MethodPost,
-			url:         ``,
+			urls:        []string{``},
 			contentType: "application/json",
 			want: want{
 				code:        400,
@@ -138,7 +126,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:        "URL without protocol",
 			method:      http.MethodPost,
-			url:         `invalidurl.ru`,
+			urls:        []string{`invalidurl.ru`},
 			contentType: "application/json",
 			want: want{
 				code:        400,
@@ -149,7 +137,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:            "Invalid gzip content",
 			method:          http.MethodPost,
-			url:             `https://yandex.ru`,
+			urls:            []string{`https://yandex.ru`},
 			contentType:     "application/json",
 			contentEncoding: "gzip",
 			want: want{
@@ -161,7 +149,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		{
 			name:            "Correct gzip content",
 			method:          http.MethodPost,
-			url:             `https://yandex.ru`,
+			urls:            []string{`https://yandex.ru`},
 			contentType:     "application/json",
 			contentEncoding: "gzip",
 			gzip:            true,
@@ -185,30 +173,30 @@ func TestPostAPIShortenHandler(t *testing.T) {
 
 			srv := service.NewURLService(cfg, repo)
 
-			if test.name == "Duplicate URL" {
-				_, _, _ = repo.SaveURL(context.Background(), test.url, "Dup123456")
-			}
-
 			gin.SetMode(gin.TestMode)
 
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.Use(middleware.RequestGzip())
-			router.POST("/api/shorten", PostAPIShortenHandler(srv))
+			router.POST("/api/shorten/batch", PostAPIShortenBatchHandler(srv))
 
 			var request *http.Request
 
-			jsonData := `{"url": "` + test.url + `"}`
+			var jsonStrings []string
+			for i, url := range test.urls {
+				jsonStrings = append(jsonStrings, fmt.Sprintf(`{"correlation_id":"%s", "original_url":"%s"}`, strconv.Itoa(i), url))
+			}
+			jsonData := `[` + strings.Join(jsonStrings, ",") + `]`
 
 			if test.gzip {
 				router.Use(gzip.Gzip(gzip.DefaultCompression))
 				compressedData, err := gzipData([]byte(jsonData))
 				require.NoError(t, err)
 
-				request = httptest.NewRequest(test.method, "/api/shorten", bytes.NewReader(compressedData))
+				request = httptest.NewRequest(test.method, "/api/shorten/batch", bytes.NewReader(compressedData))
 			} else {
-				request = httptest.NewRequest(test.method, "/api/shorten", strings.NewReader(jsonData))
+				request = httptest.NewRequest(test.method, "/api/shorten/batch", strings.NewReader(jsonData))
 			}
 
 			request.Header.Set("Content-Type", test.contentType)
@@ -222,57 +210,22 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			// Проверяем, что код ответа и тип контента соответствуют ожиданиям
 			assert.Equal(t, test.want.code, result.StatusCode)
 
-			result.Body.Close()
-
 			resultBody, err := io.ReadAll(result.Body)
-
 			require.NoError(t, err)
 
-			var resp model.APIShortenResponse
-			err = json.Unmarshal(resultBody, &resp)
+			result.Body.Close()
+
+			if result.StatusCode == http.StatusCreated {
+				var resp []model.APIShortenBatchResponse
+				err = json.Unmarshal(resultBody, &resp)
+				require.NoError(t, err)
+			} else {
+				assert.Equal(t, test.want.body, string(resultBody))
+			}
 
 			if result.StatusCode != http.StatusNotFound {
 				require.NoError(t, err)
 			}
-
-			// Проверяем, что тело ответа соответствует ожиданиям
-			if test.want.code == 201 {
-				key := strings.TrimPrefix(resp.Result, cfg.BaseURL+"/")
-
-				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
-				originalURL, _ := repo.GetOriginalURL(request.Context(), key)
-
-				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
-				originalParsedURL, _ := url.Parse(originalURL)
-				bodyParsedURL, _ := url.Parse(test.url)
-
-				// Проверяем, что длина репозитория увеличилась на 1
-				assert.Equal(t, repo.GetSize(request.Context()), 1)
-
-				// Проверяем, что оригинальная ссылка и запроса и ссылка из репозитория совпадают
-				assert.Equal(t, originalParsedURL.String(), bodyParsedURL.String())
-
-				// Проверяем, что ссылка из ответа соответствует схеме
-				assert.Equal(t, resp.Result, cfg.BaseURL+"/"+key)
-			} else if test.want.body != "" {
-				assert.Equal(t, test.want.body, string(resultBody))
-			}
 		})
 	}
-}
-
-// Функция для сжатия данных в GZIP
-func gzipData(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	gz := compgzip.NewWriter(&buf)
-
-	if _, err := gz.Write(data); err != nil {
-		return nil, err
-	}
-
-	if err := gz.Close(); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }

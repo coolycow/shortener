@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/coolycow/shortener/internal/error"
@@ -19,7 +20,11 @@ func ErrorHandler() gin.HandlerFunc {
 				var customErr error.CustomError
 				if errors.As(ginErr.Err, &customErr) {
 					if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-						c.JSON(customErr.StatusCode, gin.H{"error": customErr.Message})
+						if customErr.StatusCode != http.StatusConflict {
+							c.JSON(customErr.StatusCode, gin.H{"error": customErr.Message})
+						} else {
+							c.JSON(customErr.StatusCode, gin.H{"result": customErr.Message})
+						}
 					} else {
 						c.String(customErr.StatusCode, customErr.Message)
 					}

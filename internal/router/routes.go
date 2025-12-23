@@ -20,4 +20,8 @@ func setupURLRoutes(
 	r.POST("/", handler.PostHandler(srv))
 
 	r.POST("/api/shorten", handler.PostAPIShortenHandler(srv))
+
+	r.POST("/api/shorten/batch", handler.PostAPIShortenBatchHandler(srv))
+
+	r.GET("/ping", handler.PingHandler(srv))
 }

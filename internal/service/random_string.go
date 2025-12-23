@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"log"
 	"math/rand"
@@ -29,6 +30,7 @@ var ErrLengthExceedsMaximum = errors.New("length exceeds maximum length")
 
 // CreateUniqueStringForURL генерирует уникальную строку с учетом проверки в репозитории
 func CreateUniqueStringForURL(
+	ctx context.Context,
 	repo repository.URLRepository,
 	length int,
 	maxLength int,
@@ -36,7 +38,7 @@ func CreateUniqueStringForURL(
 	i := 0
 	key := generate(length)
 
-	for repo.IsShortURLExists(key) {
+	for repo.IsKeyExists(ctx, key) {
 		i += 1
 		key = generate(length)
 

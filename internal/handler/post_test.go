@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -89,6 +90,17 @@ func TestPostHandler(t *testing.T) {
 			},
 		},
 		{
+			name:        "Duplicate URL",
+			method:      http.MethodPost,
+			body:        "https://duplicate-example.com",
+			contentType: "text/plain",
+			want: want{
+				code:        409,
+				contentType: "text/plain",
+				body:        "",
+			},
+		},
+		{
 			name:        "Invalid method",
 			method:      http.MethodGet,
 			body:        "https://example.com",
@@ -158,6 +170,10 @@ func TestPostHandler(t *testing.T) {
 
 			srv := service.NewURLService(cfg, repo)
 
+			if test.name == "Duplicate URL" {
+				_, _, _ = repo.SaveURL(context.Background(), test.body, "Dup123456")
+			}
+
 			gin.SetMode(gin.TestMode)
 
 			router := gin.New()
@@ -189,14 +205,14 @@ func TestPostHandler(t *testing.T) {
 				key := strings.TrimPrefix(resultString, cfg.BaseURL+"/")
 
 				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
-				originalURL, _ := repo.GetOriginalURL(key)
+				originalURL, _ := repo.GetOriginalURL(request.Context(), key)
 
 				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
 				originalParsedURL, _ := url.Parse(originalURL)
 				bodyParsedURL, _ := url.Parse(test.body)
 
 				// Проверяем, что длина репозитория увеличилась на 1
-				assert.Equal(t, repo.GetSize(), 1)
+				assert.Equal(t, repo.GetSize(request.Context()), 1)
 
 				// Проверяем, что оригинальная ссылка и запроса и ссылка из репозитория совпадают
 				assert.Equal(t, originalParsedURL.String(), bodyParsedURL.String())

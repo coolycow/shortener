@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -32,10 +33,11 @@ func setupTestService() service.URLService {
 		"AAbbCC2":   "https://rambler.com",
 		"AAbbCC3":   "https://yandex.com",
 		"AAbbCC3$#": "https:/vk.com",
+		"Dup123456": "https://duplicate-example.com",
 	}
 
-	for id, url := range defaultURLs {
-		repo.SaveURL(id, url)
+	for key, u := range defaultURLs {
+		_, _, _ = repo.SaveURL(context.Background(), u, key)
 	}
 
 	return service.NewURLService(cfg, repo)

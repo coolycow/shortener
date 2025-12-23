@@ -15,7 +15,7 @@ func GetHandler(service service.URLService) gin.HandlerFunc {
 		key := strings.TrimSpace(strings.TrimPrefix(c.Param("key"), "/"))
 
 		// Получаем исходный URL по ключу из сервиса
-		rawURL, err := service.GetOriginalURL(key)
+		rawURL, err := service.GetOriginalURL(c.Request.Context(), key)
 
 		// Сервис возвращает CustomError
 		if err != nil {
