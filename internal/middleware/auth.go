@@ -10,7 +10,7 @@ import (
 
 func OptionalAuthMiddleware(cookieService service.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Request.Cookie("user")
+		cookie, err := c.Request.Cookie("auth")
 
 		if err != nil {
 			user, err := cookieService.CreateUser(c.Request.Context())
@@ -36,7 +36,7 @@ func OptionalAuthMiddleware(cookieService service.UserService) gin.HandlerFunc {
 			}
 
 			http.SetCookie(c.Writer, &http.Cookie{
-				Name:     "user",
+				Name:     "auth",
 				Value:    cookieValue,
 				Path:     "/",
 				HttpOnly: true,
@@ -72,7 +72,7 @@ func OptionalAuthMiddleware(cookieService service.UserService) gin.HandlerFunc {
 				}
 
 				http.SetCookie(c.Writer, &http.Cookie{
-					Name:     "user",
+					Name:     "auth",
 					Value:    cookieValue,
 					Path:     "/",
 					HttpOnly: true,
@@ -90,7 +90,7 @@ func OptionalAuthMiddleware(cookieService service.UserService) gin.HandlerFunc {
 
 func RequiredAuthMiddleware(cookieService service.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Request.Cookie("user")
+		cookie, err := c.Request.Cookie("auth")
 
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
