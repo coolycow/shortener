@@ -23,6 +23,7 @@ type Config struct {
 	FileStoragePath                   string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN                       string `env:"DATABASE_DSN"`
 	RunMigrations                     bool   `env:"RUN_MIGRATIONS"`
+	SecretKey                         string `env:"SECRET_KEY"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -42,6 +43,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("FileStoragePath: %s\n", c.FileStoragePath)
 	fmt.Printf("DatabaseDSN: %s\n", c.DatabaseDSN)
 	fmt.Printf("RunMigrations: %t\n", c.RunMigrations)
+	fmt.Printf("SecretKey: %s\n", c.SecretKey)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -95,6 +97,10 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
 		config.BaseURL = baseURL
+	}
+
+	if secretKey := os.Getenv("SECRET_KEY"); secretKey != "" {
+		config.SecretKey = secretKey
 	}
 
 	if err := parseIntFromEnv(config, "RANDOM_STRING_LENGTH",
@@ -162,6 +168,7 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 
 	flagSet.StringVarP(&config.DatabaseDSN, "database-dsn", "d", getDefaultDatabaseDSN(), "database DSN")
 	flagSet.BoolVarP(&config.RunMigrations, "run-migrations", "r", false, "run migrations")
+	flagSet.StringVarP(&config.SecretKey, "secret-key", "k", getDefaultSecretKey(), "secret key")
 
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))
@@ -278,4 +285,9 @@ func getDefaultStoragePath() string {
 // getDefaultDatabaseDSN Стандартные настройки подключения к БД
 func getDefaultDatabaseDSN() string {
 	return ""
+}
+
+// getDefaultSecretKey секретный ключ по умолчанию
+func getDefaultSecretKey() string {
+	return "shortener_secret_key"
 }

@@ -2,15 +2,15 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	errors2 "github.com/coolycow/shortener/internal/error"
+	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-// GetHandler Обрабатываем GET-запросы к серверу.
-func GetHandler(service service.URLService) gin.HandlerFunc {
+// GetAPIUserURLs Обрабатываем GET-запросы к серверу.
+func GetAPIUserURLs(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, err := getUserIDFromGinContext(c)
 		if err != nil {
@@ -21,11 +21,8 @@ func GetHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		// Получаем ключ из URL
-		key := strings.TrimSpace(strings.TrimPrefix(c.Param("key"), "/"))
-
 		// Получаем исходный URL по ключу из сервиса
-		rawURL, err := service.GetOriginalURL(c.Request.Context(), userID, key)
+		shortURLs, err := service.GetManyShortURLs(c.Request.Context(), userID)
 
 		// Сервис возвращает CustomError
 		if err != nil {
@@ -33,8 +30,18 @@ func GetHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
+		if len(shortURLs) == 0 {
+			c.JSON(http.StatusNoContent, nil)
+			return
+		}
+
+		responses := make([]model.APIUserURLsResponse, 0, len(shortURLs))
+
+		for _, u := range shortURLs {
+			responses = append(responses, u.ToAPIUserURLsResponse(service.GetBaseURL()))
+		}
+
 		// Формируем ответ
-		c.Header("Location", rawURL)
-		c.Status(http.StatusTemporaryRedirect)
+		c.JSON(http.StatusOK, responses)
 	}
 }

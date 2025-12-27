@@ -52,7 +52,7 @@ func NewDoubleMapsRepository(filename string) *DoubleMapsRepository {
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) AddURL(_ context.Context, originalURL string, key string) (string, bool, error) {
+func (r *DoubleMapsRepository) AddURL(_ context.Context, userID string, originalURL string, key string) (string, bool, error) {
 	if (key == "") || (originalURL == "") {
 		return "", false, errors.New("key or originalURL is empty")
 	}
@@ -73,7 +73,7 @@ func (r *DoubleMapsRepository) AddURL(_ context.Context, originalURL string, key
 }
 
 // SaveURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) SaveURL(_ context.Context, originalURL string, key string) (string, bool, error) {
+func (r *DoubleMapsRepository) SaveURL(_ context.Context, userID string, originalURL string, key string) (string, bool, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -110,9 +110,9 @@ func (r *DoubleMapsRepository) SaveURL(_ context.Context, originalURL string, ke
 
 // SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, URLs []model.ShortURL) error {
+func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
 	for i, u := range URLs {
-		resultKey, _, err := r.AddURL(ctx, u.OriginalURL, u.Key)
+		resultKey, _, err := r.AddURL(ctx, userID, u.OriginalURL, u.Key)
 
 		if err != nil {
 			logger.Log.Warn("Error saving url", zap.Error(err))
@@ -135,7 +135,7 @@ func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, URLs []model.Sho
 }
 
 // GetOriginalURL получает оригинальный URL по ключу
-func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, key string) (string, bool) {
+func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, userID string, key string) (string, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -144,7 +144,7 @@ func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, key string) (st
 }
 
 // GetKey получает ключ по оригинальному URL
-func (r *DoubleMapsRepository) GetKey(_ context.Context, originalURL string) (string, bool) {
+func (r *DoubleMapsRepository) GetKey(_ context.Context, userID string, originalURL string) (string, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -153,7 +153,7 @@ func (r *DoubleMapsRepository) GetKey(_ context.Context, originalURL string) (st
 }
 
 // GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
-func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, URLs []model.ShortURL) ([]model.ShortURL, error) {
+func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID string, URLs []model.ShortURL) ([]model.ShortURL, error) {
 	// Если массив пустой, то просто возвращаем пустой результат
 	if len(URLs) == 0 {
 		return []model.ShortURL{}, nil
@@ -171,6 +171,23 @@ func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, URLs []model.Sho
 				Key:           shortURL,
 			})
 		}
+	}
+
+	return result, nil
+}
+
+// GetManyShortURLs возвращает все сокращенные URL
+func (r *DoubleMapsRepository) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var result []model.ShortURL
+	for u, k := range r.originalToKey {
+		result = append(result, model.ShortURL{
+			CorrelationID: "",
+			OriginalURL:   u,
+			Key:           k,
+		})
 	}
 
 	return result, nil
@@ -204,4 +221,13 @@ func (r *DoubleMapsRepository) Close() error {
 // Ping проверяет доступность хранилища
 func (r *DoubleMapsRepository) Ping(_ context.Context) error {
 	return nil
+}
+
+// GetUser возвращает пользователя по его ID
+func (r *DoubleMapsRepository) GetUser(_ context.Context, userID string) (model.User, error) {
+	return model.User{ID: userID}, nil
+}
+
+func (r *DoubleMapsRepository) CreateUser(_ context.Context) (model.User, error) {
+	return model.User{ID: uuid.New().String()}, nil
 }

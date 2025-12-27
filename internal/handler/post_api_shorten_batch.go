@@ -44,7 +44,16 @@ func PostAPIShortenBatchHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		err = service.CreateManyShortURL(c.Request.Context(), URLs)
+		userID, err := getUserIDFromGinContext(c)
+		if err != nil {
+			_ = c.Error(error.CustomError{
+				Message:    err.Error(),
+				StatusCode: http.StatusUnauthorized,
+			})
+			return
+		}
+
+		err = service.CreateManyShortURL(c.Request.Context(), userID, URLs)
 
 		if err != nil {
 			logger.Log.Debug("cannot create short URLs", zap.Error(err))

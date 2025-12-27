@@ -96,13 +96,13 @@ func NewPostgresRepository(DSN string) (*PostgresRepository, error) {
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *PostgresRepository) AddURL(ctx context.Context, originalURL string, key string) (string, bool, error) {
-	return r.SaveURL(ctx, originalURL, key)
+func (r *PostgresRepository) AddURL(ctx context.Context, userID string, originalURL string, key string) (string, bool, error) {
+	return r.SaveURL(ctx, userID, originalURL, key)
 }
 
 // SaveURL сохраняет соответствие между короткой и оригинальной ссылкой.
 // Возвращает реальный ключ, логический признак ошибки вставки (дублируется исходная URL), ошибку работы.
-func (r *PostgresRepository) SaveURL(ctx context.Context, originalURL string, key string) (string, bool, error) {
+func (r *PostgresRepository) SaveURL(ctx context.Context, userID string, originalURL string, key string) (string, bool, error) {
 	if (key == "") || (originalURL == "") {
 		return "", false, errors.New("key or originalURL is empty")
 	}
@@ -114,8 +114,8 @@ func (r *PostgresRepository) SaveURL(ctx context.Context, originalURL string, ke
 	// Учитываем, что может произойти дублирование URL, поэтому мы возвращаем ключ который реально был использован.
 	// Дополнительно вернётся значение is_insert, которое будет равно true если это была новая вставка.
 	row := r.db.QueryRowContext(ctx,
-		"INSERT INTO urls (url, key) VALUES ($1, $2) ON CONFLICT (url) DO UPDATE SET key = urls.key RETURNING key, (xmax = 0) as is_insert",
-		originalURL, key)
+		"INSERT INTO urls (url, key, user_id) VALUES ($1, $2, $3) ON CONFLICT (url, user_id) DO UPDATE SET key = urls.key RETURNING key, (xmax = 0) as is_insert",
+		originalURL, key, userID)
 
 	var resultKey string
 	var isInsert bool
@@ -130,7 +130,7 @@ func (r *PostgresRepository) SaveURL(ctx context.Context, originalURL string, ke
 
 // SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (r *PostgresRepository) SaveManyURL(ctx context.Context, URLs []model.ShortURL) error {
+func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 
 	if err != nil {
@@ -139,7 +139,7 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, URLs []model.Short
 
 	// Подготавливаем запрос
 	stmt, err := tx.PrepareContext(ctx,
-		"INSERT INTO urls (url, key) VALUES ($1, $2) ON CONFLICT (url) DO UPDATE SET key = urls.key RETURNING key")
+		"INSERT INTO urls (url, key, user_id) VALUES ($1, $2, $3) ON CONFLICT (url, user_id) DO UPDATE SET key = urls.key RETURNING key")
 
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, URLs []model.Short
 		}
 
 		var resultKey string
-		row := stmt.QueryRowContext(ctx, u.OriginalURL, u.Key)
+		row := stmt.QueryRowContext(ctx, u.OriginalURL, u.Key, userID)
 		err = row.Scan(&resultKey)
 
 		if err != nil {
@@ -174,8 +174,8 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, URLs []model.Short
 }
 
 // GetOriginalURL получает оригинальный URL по ключу
-func (r *PostgresRepository) GetOriginalURL(ctx context.Context, key string) (string, bool) {
-	row := r.db.QueryRowContext(ctx, "select url from urls where key = $1", key)
+func (r *PostgresRepository) GetOriginalURL(ctx context.Context, userID string, key string) (string, bool) {
+	row := r.db.QueryRowContext(ctx, "select url from urls where user_id = $1 AND key = $2", userID, key)
 
 	var url string
 	err := row.Scan(&url)
@@ -188,8 +188,8 @@ func (r *PostgresRepository) GetOriginalURL(ctx context.Context, key string) (st
 }
 
 // GetKey получает ключ по оригинальному URL
-func (r *PostgresRepository) GetKey(ctx context.Context, originalURL string) (string, bool) {
-	row := r.db.QueryRowContext(ctx, "select key from urls where url = $1", originalURL)
+func (r *PostgresRepository) GetKey(ctx context.Context, userID string, originalURL string) (string, bool) {
+	row := r.db.QueryRowContext(ctx, "select key from urls where user_id = $1 AND url = $2", userID, originalURL)
 
 	var key string
 	err := row.Scan(&key)
@@ -202,7 +202,7 @@ func (r *PostgresRepository) GetKey(ctx context.Context, originalURL string) (st
 }
 
 // GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
-func (r *PostgresRepository) GetManyKeys(ctx context.Context, URLs []model.ShortURL) ([]model.ShortURL, error) {
+func (r *PostgresRepository) GetManyKeys(ctx context.Context, userID string, URLs []model.ShortURL) ([]model.ShortURL, error) {
 	// Если массив пустой, то просто возвращаем пустой результат
 	if len(URLs) == 0 {
 		return []model.ShortURL{}, nil
@@ -229,9 +229,9 @@ func (r *PostgresRepository) GetManyKeys(ctx context.Context, URLs []model.Short
 		args = append(args, u)
 	}
 
-	query := fmt.Sprintf("SELECT url, key FROM urls WHERE url IN (%s)", strings.Join(placeholders, ","))
+	query := fmt.Sprintf("SELECT url, key FROM urls WHERE user_id = $1 AND url IN (%s)", strings.Join(placeholders, ","))
+	rows, err := r.db.QueryContext(ctx, query, append([]interface{}{userID}, args...)...)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,6 +263,39 @@ func (r *PostgresRepository) GetManyKeys(ctx context.Context, URLs []model.Short
 	}
 
 	// Если произошла ошибка - возвращаем её
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// GetManyShortURLs возвращает все сокращенные URL
+func (r *PostgresRepository) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
+	var result []model.ShortURL
+
+	rows, err := r.db.QueryContext(ctx, "select id, url, key from urls where user_id = $1", userID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var url string
+		var key string
+		if err := rows.Scan(&id, &url, &key); err != nil {
+			return nil, err
+		}
+
+		result = append(result, model.ShortURL{
+			CorrelationID: id,
+			OriginalURL:   url,
+			Key:           key,
+		})
+	}
+
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
@@ -309,4 +342,31 @@ func (r *PostgresRepository) Close() error {
 // Ping проверяет доступность хранилища
 func (r *PostgresRepository) Ping(ctx context.Context) error {
 	return r.db.PingContext(ctx)
+}
+
+// GetUser возвращает пользователя по его ID
+func (r *PostgresRepository) GetUser(ctx context.Context, userID string) (model.User, error) {
+	row := r.db.QueryRowContext(ctx, "select id from users where id = $1", userID)
+
+	var ID string
+	err := row.Scan(&ID)
+
+	if err != nil {
+		return model.User{}, err
+	}
+
+	return model.User{ID: ID}, nil
+}
+
+func (r *PostgresRepository) CreateUser(ctx context.Context) (model.User, error) {
+	row := r.db.QueryRowContext(ctx, "INSERT INTO users DEFAULT VALUES RETURNING id")
+
+	var ID string
+	err := row.Scan(&ID)
+
+	if err != nil {
+		return model.User{}, err
+	}
+
+	return model.User{ID: ID}, nil
 }

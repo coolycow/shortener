@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/handler"
+	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
@@ -14,14 +15,15 @@ func setupURLRoutes(
 	repo repository.URLRepository,
 ) {
 	srv := service.NewURLService(cfg, repo)
-
-	r.GET("/:key", handler.GetHandler(srv))
-
-	r.POST("/", handler.PostHandler(srv))
-
-	r.POST("/api/shorten", handler.PostAPIShortenHandler(srv))
-
-	r.POST("/api/shorten/batch", handler.PostAPIShortenBatchHandler(srv))
+	cookieService := service.NewUserService(cfg, repo)
 
 	r.GET("/ping", handler.PingHandler(srv))
+
+	r.POST("/", middleware.OptionalAuthMiddleware(cookieService), handler.PostHandler(srv))
+	r.GET("/:key", middleware.OptionalAuthMiddleware(cookieService), handler.GetHandler(srv))
+
+	r.POST("/api/shorten", middleware.OptionalAuthMiddleware(cookieService), handler.PostAPIShortenHandler(srv))
+	r.POST("/api/shorten/batch", middleware.OptionalAuthMiddleware(cookieService), handler.PostAPIShortenBatchHandler(srv))
+
+	r.GET("/api/user/urls", middleware.RequiredAuthMiddleware(cookieService), handler.GetAPIUserURLs(srv))
 }

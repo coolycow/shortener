@@ -14,9 +14,12 @@ import (
 
 // URLService Сервис для работы в Handler
 type URLService interface {
-	GetOriginalURL(ctx context.Context, key string) (string, error)
-	CreateShortURL(ctx context.Context, originalURL string) (string, error)
-	CreateManyShortURL(ctx context.Context, URLs []model.ShortURL) error
+	GetOriginalURL(ctx context.Context, userID string, key string) (string, error)
+	GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error)
+
+	CreateShortURL(ctx context.Context, userID string, originalURL string) (string, error)
+	CreateManyShortURL(ctx context.Context, userID string, URLs []model.ShortURL) error
+
 	GetBaseURL() string
 	PingRepository(ctx context.Context) error
 }
@@ -35,8 +38,8 @@ func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService
 	}
 }
 
-// GetOriginalURL возвращает исходную ссылку по короткому ключу
-func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, error) {
+// GetOriginalURL возвращает исходную ссылку пользователя по короткому ключу
+func (s *urlService) GetOriginalURL(ctx context.Context, userID string, key string) (string, error) {
 	// Если key пустой, то возвращаем ошибку 400
 	if key == "" {
 		return "", error2.CustomError{
@@ -44,7 +47,7 @@ func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, er
 			StatusCode: http.StatusBadRequest}
 	}
 
-	url, exists := s.repo.GetOriginalURL(ctx, key)
+	url, exists := s.repo.GetOriginalURL(ctx, userID, key)
 
 	// Если запись не найдена, то возвращаем ошибку 404
 	if !exists {
@@ -57,8 +60,22 @@ func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, er
 	return url, nil
 }
 
-// CreateShortURL создание новой пары короткой и исходной ссылки
-func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
+// GetManyOriginalURL возвращает все ссылки когда-либо сокращенные пользователем
+func (s *urlService) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
+	urls, err := s.repo.GetManyShortURLs(ctx, userID)
+
+	if err != nil {
+		return []model.ShortURL{}, error2.CustomError{
+			Message:    "Internal Server Error",
+			StatusCode: http.StatusInternalServerError,
+		}
+	}
+
+	return urls, nil
+}
+
+// CreateShortURL создание новой пары короткой и исходной ссылки для пользователя
+func (s *urlService) CreateShortURL(ctx context.Context, userID string, originalURL string) (string, error) {
 	// Генерируем короткую ссылку заданной в настройках длины и гарантируем её уникальность
 	key, err := CreateUniqueStringForURL(
 		ctx,
@@ -78,7 +95,7 @@ func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (st
 	// Сохраняем короткую ссылку в репозитории.
 	// В случае дублирования originalURL в момент сохранения будет использован уже существующий ключ.
 	// hasConflict показывает было ли реальное добавление или ссылка уже была в репозитории
-	resultKey, hasConflict, err := s.repo.SaveURL(ctx, originalURL, key)
+	resultKey, hasConflict, err := s.repo.SaveURL(ctx, userID, originalURL, key)
 
 	if err != nil {
 		logger.Log.Error(err.Error())
@@ -98,11 +115,11 @@ func (s *urlService) CreateShortURL(ctx context.Context, originalURL string) (st
 	return s.cfg.BaseURL + "/" + resultKey, nil
 }
 
-// CreateManyShortURL создание множества пар.
+// CreateManyShortURL создание множества пар для пользователя.
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (s *urlService) CreateManyShortURL(ctx context.Context, URLs []model.ShortURL) error {
+func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
 	// Получаем все уже существующие ключи для переданного массива ShortURL
-	exists, err := s.repo.GetManyKeys(ctx, URLs)
+	exists, err := s.repo.GetManyKeys(ctx, userID, URLs)
 
 	if err != nil {
 		return error2.CustomError{
@@ -153,7 +170,7 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, URLs []model.ShortU
 		}
 	}
 
-	return s.repo.SaveManyURL(ctx, URLs)
+	return s.repo.SaveManyURL(ctx, userID, URLs)
 }
 
 // GetBaseURL просто возвращает базовый URL
@@ -161,6 +178,7 @@ func (s *urlService) GetBaseURL() string {
 	return s.cfg.BaseURL
 }
 
+// PingRepository проверяет доступность репозитория
 func (s *urlService) PingRepository(ctx context.Context) error {
 	return s.repo.Ping(ctx)
 }

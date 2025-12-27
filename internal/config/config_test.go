@@ -9,6 +9,7 @@ import (
 func TestConfig(t *testing.T) {
 	fileStoragePath := getDefaultStoragePath()
 	databaseDSN := getDefaultDatabaseDSN()
+	secretKey := getDefaultSecretKey()
 
 	tests := []struct {
 		name string
@@ -28,6 +29,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -43,6 +45,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -58,6 +61,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -73,6 +77,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -88,6 +93,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       "test",
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -103,6 +109,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -118,6 +125,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -133,6 +141,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -155,6 +164,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -173,6 +183,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -192,6 +203,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -207,6 +219,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "debug",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -226,6 +239,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "warn",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -243,6 +257,7 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   "test.json",
 				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         secretKey,
 			},
 		},
 		{
@@ -260,6 +275,25 @@ func TestConfig(t *testing.T) {
 				LogLevel:                          "info",
 				FileStoragePath:                   fileStoragePath,
 				DatabaseDSN:                       "test",
+				SecretKey:                         secretKey,
+			},
+		},
+		{
+			name: "Env: Secret Key",
+			env: map[string]string{
+				"SECRET_KEY": "test",
+			},
+			want: Config{
+				Host:                              "127.0.0.1",
+				Port:                              8080,
+				BaseURL:                           "http://127.0.0.1:8080",
+				RandomStringLength:                6,
+				RandomStringMaxLength:             255,
+				RandomStringMaxGenerationAttempts: 1000,
+				LogLevel:                          "info",
+				FileStoragePath:                   fileStoragePath,
+				DatabaseDSN:                       databaseDSN,
+				SecretKey:                         "test",
 			},
 		},
 	}

@@ -171,7 +171,8 @@ func TestPostAPIShortenBatchHandler(t *testing.T) {
 			repo := repository.NewDoubleMapsRepository(tmpFile)
 			defer repo.Close()
 
-			srv := service.NewURLService(cfg, repo)
+			urlService := service.NewURLService(cfg, repo)
+			userService := service.NewUserService(cfg, repo)
 
 			gin.SetMode(gin.TestMode)
 
@@ -179,7 +180,8 @@ func TestPostAPIShortenBatchHandler(t *testing.T) {
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.Use(middleware.RequestGzip())
-			router.POST("/api/shorten/batch", PostAPIShortenBatchHandler(srv))
+			router.Use(middleware.OptionalAuthMiddleware(userService))
+			router.POST("/api/shorten/batch", PostAPIShortenBatchHandler(urlService))
 
 			var request *http.Request
 

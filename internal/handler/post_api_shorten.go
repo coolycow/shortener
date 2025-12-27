@@ -62,7 +62,16 @@ func PostAPIShortenHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		shortURL, err := service.CreateShortURL(c.Request.Context(), validURL.String())
+		userID, err := getUserIDFromGinContext(c)
+		if err != nil {
+			_ = c.Error(error.CustomError{
+				Message:    err.Error(),
+				StatusCode: http.StatusUnauthorized,
+			})
+			return
+		}
+
+		shortURL, err := service.CreateShortURL(c.Request.Context(), userID, validURL.String())
 
 		if err != nil {
 			logger.Log.Debug("cannot create short URL", zap.Error(err))

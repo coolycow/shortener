@@ -45,6 +45,14 @@ func (s *ShortURL) ToAPIShortenBatchResponse(baseURL string) APIShortenBatchResp
 	}
 }
 
+// ToAPIUserURLsResponse переводит в подходящую структуру ответа
+func (s *ShortURL) ToAPIUserURLsResponse(baseURL string) APIUserURLsResponse {
+	return APIUserURLsResponse{
+		ShortURL:    baseURL + `/` + s.Key,
+		OriginalURL: s.OriginalURL,
+	}
+}
+
 // parseOriginalURL отдельная функция для парсинга исходной URL
 func parseOriginalURL(originalURL string) (string, error) {
 	// Извлекаем строку из тела запроса и проверяем, что она не пуста
