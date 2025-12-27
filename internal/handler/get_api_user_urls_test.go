@@ -71,7 +71,7 @@ func TestGetAPIUserURLs(t *testing.T) {
 			request := httptest.NewRequest(test.method, "/api/user/urls", nil)
 
 			request.AddCookie(&http.Cookie{
-				Name:  "user",
+				Name:  "auth",
 				Value: cookieValue,
 			})
 
