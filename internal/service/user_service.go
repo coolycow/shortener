@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/model"
@@ -17,8 +18,8 @@ import (
 // UserService Сервис для работы в Handler
 type UserService interface {
 	CreateUser(ctx context.Context) (model.User, error)
-	GetUserIDFromCookie(cookie *http.Cookie) (string, error)
-	GetCookieValueByUserID(userID string) (string, error)
+	GetUserIDFromCookie(cookie *http.Cookie) (int, error)
+	GetCookieValueByUserID(userID int) (string, error)
 }
 
 // Реализация сервисного слоя
@@ -53,25 +54,25 @@ func (s *userService) CreateUser(ctx context.Context) (model.User, error) {
 }
 
 // GetUserIDFromCookie достаёт UserID из переданной куки
-func (s *userService) GetUserIDFromCookie(cookie *http.Cookie) (string, error) {
+func (s *userService) GetUserIDFromCookie(cookie *http.Cookie) (int, error) {
 	cookieValue := cookie.Value
 
 	// Декодируем hex
 	data, err := hex.DecodeString(cookieValue)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	key := sha256.Sum256([]byte(s.cfg.SecretKey))
 
 	aesBlock, err := aes.NewCipher(key[:])
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	aesGCM, err := cipher.NewGCM(aesBlock)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	// создаём вектор инициализации
@@ -84,14 +85,19 @@ func (s *userService) GetUserIDFromCookie(cookie *http.Cookie) (string, error) {
 	// расшифровываем
 	decrypted, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
-	return string(decrypted), nil
+	uID, err := strconv.Atoi(string(decrypted))
+	if err != nil {
+		return 0, err
+	}
+
+	return uID, nil
 }
 
 // GetCookieValueByUserID возвращает значение куки для указанного userID
-func (s *userService) GetCookieValueByUserID(userID string) (string, error) {
+func (s *userService) GetCookieValueByUserID(userID int) (string, error) {
 	key := sha256.Sum256([]byte(s.cfg.SecretKey))
 
 	aesBlock, err := aes.NewCipher(key[:])
@@ -110,7 +116,7 @@ func (s *userService) GetCookieValueByUserID(userID string) (string, error) {
 		return "", err
 	}
 
-	dst := aesGCM.Seal(nil, nonce, []byte(userID), nil)
+	dst := aesGCM.Seal(nil, nonce, []byte(strconv.Itoa(userID)), nil)
 
 	// Сохраняем nonce вместе с зашифрованными данными
 	result := append(nonce, dst...)

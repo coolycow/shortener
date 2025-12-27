@@ -14,11 +14,11 @@ import (
 
 // URLService Сервис для работы в Handler
 type URLService interface {
-	GetOriginalURL(ctx context.Context, userID string, key string) (string, error)
-	GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error)
+	GetOriginalURL(ctx context.Context, userID int, key string) (string, error)
+	GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error)
 
-	CreateShortURL(ctx context.Context, userID string, originalURL string) (string, error)
-	CreateManyShortURL(ctx context.Context, userID string, URLs []model.ShortURL) error
+	CreateShortURL(ctx context.Context, userID int, originalURL string) (string, error)
+	CreateManyShortURL(ctx context.Context, userID int, URLs []model.ShortURL) error
 
 	GetBaseURL() string
 	PingRepository(ctx context.Context) error
@@ -39,7 +39,7 @@ func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService
 }
 
 // GetOriginalURL возвращает исходную ссылку пользователя по короткому ключу
-func (s *urlService) GetOriginalURL(ctx context.Context, userID string, key string) (string, error) {
+func (s *urlService) GetOriginalURL(ctx context.Context, userID int, key string) (string, error) {
 	// Если key пустой, то возвращаем ошибку 400
 	if key == "" {
 		return "", error2.CustomError{
@@ -60,8 +60,8 @@ func (s *urlService) GetOriginalURL(ctx context.Context, userID string, key stri
 	return url, nil
 }
 
-// GetManyOriginalURL возвращает все ссылки когда-либо сокращенные пользователем
-func (s *urlService) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
+// GetManyShortURLs возвращает все ссылки когда-либо сокращенные пользователем
+func (s *urlService) GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error) {
 	urls, err := s.repo.GetManyShortURLs(ctx, userID)
 
 	if err != nil {
@@ -75,7 +75,7 @@ func (s *urlService) GetManyShortURLs(ctx context.Context, userID string) ([]mod
 }
 
 // CreateShortURL создание новой пары короткой и исходной ссылки для пользователя
-func (s *urlService) CreateShortURL(ctx context.Context, userID string, originalURL string) (string, error) {
+func (s *urlService) CreateShortURL(ctx context.Context, userID int, originalURL string) (string, error) {
 	// Генерируем короткую ссылку заданной в настройках длины и гарантируем её уникальность
 	key, err := CreateUniqueStringForURL(
 		ctx,
@@ -117,13 +117,13 @@ func (s *urlService) CreateShortURL(ctx context.Context, userID string, original
 
 // CreateManyShortURL создание множества пар для пользователя.
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
+func (s *urlService) CreateManyShortURL(ctx context.Context, userID int, URLs []model.ShortURL) error {
 	// Получаем все уже существующие ключи для переданного массива ShortURL
 	exists, err := s.repo.GetManyKeys(ctx, userID, URLs)
 
 	if err != nil {
 		return error2.CustomError{
-			Message:    "Internal Server Error",
+			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
 		}
 	}

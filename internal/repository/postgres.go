@@ -96,13 +96,13 @@ func NewPostgresRepository(DSN string) (*PostgresRepository, error) {
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *PostgresRepository) AddURL(ctx context.Context, userID string, originalURL string, key string) (string, bool, error) {
+func (r *PostgresRepository) AddURL(ctx context.Context, userID int, originalURL string, key string) (string, bool, error) {
 	return r.SaveURL(ctx, userID, originalURL, key)
 }
 
 // SaveURL сохраняет соответствие между короткой и оригинальной ссылкой.
 // Возвращает реальный ключ, логический признак ошибки вставки (дублируется исходная URL), ошибку работы.
-func (r *PostgresRepository) SaveURL(ctx context.Context, userID string, originalURL string, key string) (string, bool, error) {
+func (r *PostgresRepository) SaveURL(ctx context.Context, userID int, originalURL string, key string) (string, bool, error) {
 	if (key == "") || (originalURL == "") {
 		return "", false, errors.New("key or originalURL is empty")
 	}
@@ -130,7 +130,7 @@ func (r *PostgresRepository) SaveURL(ctx context.Context, userID string, origina
 
 // SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
+func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID int, URLs []model.ShortURL) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 
 	if err != nil {
@@ -174,7 +174,7 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID string, URL
 }
 
 // GetOriginalURL получает оригинальный URL по ключу
-func (r *PostgresRepository) GetOriginalURL(ctx context.Context, userID string, key string) (string, bool) {
+func (r *PostgresRepository) GetOriginalURL(ctx context.Context, userID int, key string) (string, bool) {
 	row := r.db.QueryRowContext(ctx, "select url from urls where user_id = $1 AND key = $2", userID, key)
 
 	var url string
@@ -188,7 +188,7 @@ func (r *PostgresRepository) GetOriginalURL(ctx context.Context, userID string, 
 }
 
 // GetKey получает ключ по оригинальному URL
-func (r *PostgresRepository) GetKey(ctx context.Context, userID string, originalURL string) (string, bool) {
+func (r *PostgresRepository) GetKey(ctx context.Context, userID int, originalURL string) (string, bool) {
 	row := r.db.QueryRowContext(ctx, "select key from urls where user_id = $1 AND url = $2", userID, originalURL)
 
 	var key string
@@ -202,7 +202,7 @@ func (r *PostgresRepository) GetKey(ctx context.Context, userID string, original
 }
 
 // GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
-func (r *PostgresRepository) GetManyKeys(ctx context.Context, userID string, URLs []model.ShortURL) ([]model.ShortURL, error) {
+func (r *PostgresRepository) GetManyKeys(ctx context.Context, userID int, URLs []model.ShortURL) ([]model.ShortURL, error) {
 	// Если массив пустой, то просто возвращаем пустой результат
 	if len(URLs) == 0 {
 		return []model.ShortURL{}, nil
@@ -222,15 +222,18 @@ func (r *PostgresRepository) GetManyKeys(ctx context.Context, userID string, URL
 
 	// Подготавливаем данные для запроса
 	placeholders := make([]string, 0, len(originalURLs))
-	args := make([]interface{}, 0, len(originalURLs))
+	args := make([]interface{}, 0, len(originalURLs)+1) // +1 для userID
+
+	// Добавляем userID как первый параметр
+	args = append(args, userID)
 
 	for i, u := range originalURLs {
-		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2)) // Начинаем с $2, так как $1 - это userID
 		args = append(args, u)
 	}
 
 	query := fmt.Sprintf("SELECT url, key FROM urls WHERE user_id = $1 AND url IN (%s)", strings.Join(placeholders, ","))
-	rows, err := r.db.QueryContext(ctx, query, append([]interface{}{userID}, args...)...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 
 	if err != nil {
 		return nil, err
@@ -271,7 +274,7 @@ func (r *PostgresRepository) GetManyKeys(ctx context.Context, userID string, URL
 }
 
 // GetManyShortURLs возвращает все сокращенные URL
-func (r *PostgresRepository) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
+func (r *PostgresRepository) GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error) {
 	var result []model.ShortURL
 
 	rows, err := r.db.QueryContext(ctx, "select id, url, key from urls where user_id = $1", userID)
@@ -345,10 +348,10 @@ func (r *PostgresRepository) Ping(ctx context.Context) error {
 }
 
 // GetUser возвращает пользователя по его ID
-func (r *PostgresRepository) GetUser(ctx context.Context, userID string) (model.User, error) {
+func (r *PostgresRepository) GetUser(ctx context.Context, userID int) (model.User, error) {
 	row := r.db.QueryRowContext(ctx, "select id from users where id = $1", userID)
 
-	var ID string
+	var ID int
 	err := row.Scan(&ID)
 
 	if err != nil {
@@ -361,7 +364,7 @@ func (r *PostgresRepository) GetUser(ctx context.Context, userID string) (model.
 func (r *PostgresRepository) CreateUser(ctx context.Context) (model.User, error) {
 	row := r.db.QueryRowContext(ctx, "INSERT INTO users DEFAULT VALUES RETURNING id")
 
-	var ID string
+	var ID int
 	err := row.Scan(&ID)
 
 	if err != nil {

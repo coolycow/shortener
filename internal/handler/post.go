@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,16 +13,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func getUserIDFromGinContext(c *gin.Context) (string, error) {
+func getUserIDFromGinContext(c *gin.Context) (int, error) {
 	value, exists := c.Get("userID")
 
 	if !exists || value == nil {
-		return "", errors.New("user ID not found in context")
+		return 0, errors.New("user ID not found in context")
 	}
 
-	userID, ok := value.(string)
+	userID, ok := value.(int)
+	fmt.Println(value)
 	if !ok {
-		return "", errors.New("user ID not found in context")
+		return 0, errors.New("incorrect user ID in context")
 	}
 
 	return userID, nil
