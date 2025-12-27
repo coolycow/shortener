@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	errors2 "github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -12,20 +11,11 @@ import (
 // GetHandler Обрабатываем GET-запросы к серверу.
 func GetHandler(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, err := getUserIDFromGinContext(c)
-		if err != nil {
-			_ = c.Error(errors2.CustomError{
-				Message:    err.Error(),
-				StatusCode: http.StatusUnauthorized,
-			})
-			return
-		}
-
 		// Получаем ключ из URL
 		key := strings.TrimSpace(strings.TrimPrefix(c.Param("key"), "/"))
 
 		// Получаем исходный URL по ключу из сервиса
-		rawURL, err := service.GetOriginalURL(c.Request.Context(), userID, key)
+		rawURL, err := service.GetOriginalURL(c.Request.Context(), key)
 
 		// Сервис возвращает CustomError
 		if err != nil {

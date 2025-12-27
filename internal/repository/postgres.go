@@ -174,8 +174,8 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID int, URLs [
 }
 
 // GetOriginalURL получает оригинальный URL по ключу
-func (r *PostgresRepository) GetOriginalURL(ctx context.Context, userID int, key string) (string, bool) {
-	row := r.db.QueryRowContext(ctx, "select url from urls where user_id = $1 AND key = $2", userID, key)
+func (r *PostgresRepository) GetOriginalURL(ctx context.Context, key string) (string, bool) {
+	row := r.db.QueryRowContext(ctx, "select url from urls where key = $1", key)
 
 	var url string
 	err := row.Scan(&url)

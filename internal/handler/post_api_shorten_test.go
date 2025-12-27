@@ -242,7 +242,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 				key := strings.TrimPrefix(resp.Result, cfg.BaseURL+"/")
 
 				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
-				originalURL, _ := repo.GetOriginalURL(request.Context(), 1, key)
+				originalURL, _ := repo.GetOriginalURL(request.Context(), key)
 
 				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
 				originalParsedURL, _ := url.Parse(originalURL)

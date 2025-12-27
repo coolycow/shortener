@@ -12,7 +12,7 @@ type URLRepository interface {
 	SaveURL(ctx context.Context, userID int, originalURL string, key string) (string, bool, error)
 	SaveManyURL(ctx context.Context, userID int, URLs []model.ShortURL) error
 
-	GetOriginalURL(ctx context.Context, userID int, key string) (string, bool)
+	GetOriginalURL(ctx context.Context, key string) (string, bool)
 	GetKey(ctx context.Context, userID int, originalURL string) (string, bool)
 	GetManyKeys(ctx context.Context, userID int, URLs []model.ShortURL) ([]model.ShortURL, error)
 	GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error)

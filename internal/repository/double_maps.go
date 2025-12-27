@@ -136,7 +136,7 @@ func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, userID int, URLs
 }
 
 // GetOriginalURL получает оригинальный URL по ключу
-func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, userID int, key string) (string, bool) {
+func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, key string) (string, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 

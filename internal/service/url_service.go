@@ -14,7 +14,7 @@ import (
 
 // URLService Сервис для работы в Handler
 type URLService interface {
-	GetOriginalURL(ctx context.Context, userID int, key string) (string, error)
+	GetOriginalURL(ctx context.Context, key string) (string, error)
 	GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error)
 
 	CreateShortURL(ctx context.Context, userID int, originalURL string) (string, error)
@@ -39,7 +39,7 @@ func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService
 }
 
 // GetOriginalURL возвращает исходную ссылку пользователя по короткому ключу
-func (s *urlService) GetOriginalURL(ctx context.Context, userID int, key string) (string, error) {
+func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, error) {
 	// Если key пустой, то возвращаем ошибку 400
 	if key == "" {
 		return "", error2.CustomError{
@@ -47,7 +47,7 @@ func (s *urlService) GetOriginalURL(ctx context.Context, userID int, key string)
 			StatusCode: http.StatusBadRequest}
 	}
 
-	url, exists := s.repo.GetOriginalURL(ctx, userID, key)
+	url, exists := s.repo.GetOriginalURL(ctx, key)
 
 	// Если запись не найдена, то возвращаем ошибку 404
 	if !exists {
