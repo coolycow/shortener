@@ -1,6 +1,6 @@
 ALTER TABLE urls ADD COLUMN user_id INTEGER NOT NULL;
 
-ALTER TABLE urls ADD CONSTRAINT fk_urls_user_id FOREIGN KEY (user_id) REFERENCES users(id);
+ALTER TABLE urls ADD CONSTRAINT fk_urls_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 DROP INDEX idx_urls_url_unique;
 
