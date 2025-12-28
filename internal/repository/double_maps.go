@@ -240,11 +240,8 @@ func (r *DoubleMapsRepository) DeleteManyURLs(ctx context.Context, userID string
 	defer r.mutex.Unlock()
 
 	for _, key := range keys {
-		if _, exists := r.keyToOriginal[key]; exists {
-			if _, exists := r.originalToKey[r.keyToOriginal[key]]; exists {
-				delete(r.originalToKey, r.keyToOriginal[key])
-			}
-
+		if originalURL, exists := r.keyToOriginal[key]; exists {
+			delete(r.originalToKey, originalURL)
 			delete(r.keyToOriginal, key)
 		}
 	}
