@@ -14,14 +14,16 @@ import (
 
 // URLService Сервис для работы в Handler
 type URLService interface {
-	GetOriginalURL(ctx context.Context, key string) (string, error)
-	GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error)
+	GetShortURL(ctx context.Context, key string) (model.ShortURL, error)
+	GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error)
 
-	CreateShortURL(ctx context.Context, userID int, originalURL string) (string, error)
-	CreateManyShortURL(ctx context.Context, userID int, URLs []model.ShortURL) error
+	CreateShortURL(ctx context.Context, userID string, originalURL string) (string, error)
+	CreateManyShortURL(ctx context.Context, userID string, URLs []model.ShortURL) error
 
 	GetBaseURL() string
 	PingRepository(ctx context.Context) error
+
+	DeleteManyURLs(ctx context.Context, userID string, keys []string) error
 }
 
 // Реализация сервисного слоя
@@ -38,20 +40,20 @@ func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService
 	}
 }
 
-// GetOriginalURL возвращает исходную ссылку пользователя по короткому ключу
-func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, error) {
+// GetShortURL возвращает исходную ссылку пользователя по короткому ключу
+func (s *urlService) GetShortURL(ctx context.Context, key string) (model.ShortURL, error) {
 	// Если key пустой, то возвращаем ошибку 400
 	if key == "" {
-		return "", error2.CustomError{
+		return model.ShortURL{}, error2.CustomError{
 			Message:    "key is required",
 			StatusCode: http.StatusBadRequest}
 	}
 
-	url, exists := s.repo.GetOriginalURL(ctx, key)
+	url, exists := s.repo.GetShortURL(ctx, key)
 
 	// Если запись не найдена, то возвращаем ошибку 404
 	if !exists {
-		return "", error2.CustomError{
+		return model.ShortURL{}, error2.CustomError{
 			Message:    fmt.Sprintf("key %s does not exist", key),
 			StatusCode: http.StatusNotFound,
 		}
@@ -61,7 +63,7 @@ func (s *urlService) GetOriginalURL(ctx context.Context, key string) (string, er
 }
 
 // GetManyShortURLs возвращает все ссылки когда-либо сокращенные пользователем
-func (s *urlService) GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error) {
+func (s *urlService) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
 	urls, err := s.repo.GetManyShortURLs(ctx, userID)
 
 	if err != nil {
@@ -75,7 +77,7 @@ func (s *urlService) GetManyShortURLs(ctx context.Context, userID int) ([]model.
 }
 
 // CreateShortURL создание новой пары короткой и исходной ссылки для пользователя
-func (s *urlService) CreateShortURL(ctx context.Context, userID int, originalURL string) (string, error) {
+func (s *urlService) CreateShortURL(ctx context.Context, userID string, originalURL string) (string, error) {
 	// Генерируем короткую ссылку заданной в настройках длины и гарантируем её уникальность
 	key, err := CreateUniqueStringForURL(
 		ctx,
@@ -117,7 +119,7 @@ func (s *urlService) CreateShortURL(ctx context.Context, userID int, originalURL
 
 // CreateManyShortURL создание множества пар для пользователя.
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (s *urlService) CreateManyShortURL(ctx context.Context, userID int, URLs []model.ShortURL) error {
+func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
 	// Получаем все уже существующие ключи для переданного массива ShortURL
 	exists, err := s.repo.GetManyKeys(ctx, userID, URLs)
 
@@ -181,4 +183,64 @@ func (s *urlService) GetBaseURL() string {
 // PingRepository проверяет доступность репозитория
 func (s *urlService) PingRepository(ctx context.Context) error {
 	return s.repo.Ping(ctx)
+}
+
+// DeleteManyURLs удаление множества URL
+func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []string) error {
+	// Если массив пустой, то просто возвращаем пустой результат
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// Размер порции для батчинга
+	const batchSize = 100
+
+	// Создаем канал для задач удаления
+	jobs := make(chan []string, len(keys)/batchSize+1)
+
+	// Создаем канал для результатов с использованием паттерна fan-in
+	results := make(chan error, len(keys)/batchSize+1)
+
+	// Количество воркеров
+	numWorkers := 5
+
+	// Запускаем воркеры, которые будут обрабатывать порции ключей
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			for batch := range jobs {
+				// Передаем порцию ключей в репозиторий для удаления
+				err := s.repo.DeleteManyURLs(ctx, userID, batch)
+				results <- err
+			}
+		}()
+	}
+
+	// Разбиваем массив ключей на порции и отправляем в канал jobs
+	go func() {
+		defer close(jobs)
+
+		for i := 0; i < len(keys); i += batchSize {
+			end := i + batchSize
+			if end > len(keys) {
+				end = len(keys)
+			}
+
+			batch := make([]string, end-i)
+			copy(batch, keys[i:end])
+			jobs <- batch
+		}
+	}()
+
+	// Собираем результаты (это и есть fan-in)
+	go func() {
+		defer close(results)
+
+		// Ждем завершения всех задач
+		for i := 0; i < len(keys)/batchSize+1; i++ {
+			<-results // Просто считываем ошибки, но можно и накапливать их
+		}
+	}()
+
+	// Возвращаем сразу, не дожидаясь фактического удаления
+	return nil
 }

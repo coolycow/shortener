@@ -38,7 +38,7 @@ func setupTestService(addDefaultURLs bool) (service.URLService, service.UserServ
 		}
 
 		for key, u := range defaultURLs {
-			_, _, _ = repo.SaveURL(context.Background(), 1, u, key)
+			_, _, _ = repo.SaveURL(context.Background(), uuid.New().String(), u, key)
 		}
 	}
 

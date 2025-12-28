@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	error2 "github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
@@ -12,9 +13,11 @@ import (
 )
 
 type ShortURL struct {
-	CorrelationID string `json:"correlation_id"`
-	OriginalURL   string `json:"original_url"`
-	Key           string `json:"key"`
+	CorrelationID string     `json:"correlation_id"`
+	OriginalURL   string     `json:"original_url"`
+	Key           string     `json:"key"`
+	UserID        string     `json:"user_id"`
+	DeletedAt     *time.Time `json:"deleted_at"`
 }
 
 // UnmarshalJSON нужна для специальной проверки входных данных

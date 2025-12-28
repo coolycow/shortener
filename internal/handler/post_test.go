@@ -172,7 +172,7 @@ func TestPostHandler(t *testing.T) {
 			userService := service.NewUserService(cfg, repo)
 
 			if test.name == "Duplicate URL" {
-				_, _, _ = repo.SaveURL(context.Background(), 1, test.body, "Dup123456")
+				_, _, _ = repo.SaveURL(context.Background(), uuid.New().String(), test.body, "Dup123456")
 			}
 
 			gin.SetMode(gin.TestMode)
@@ -207,10 +207,10 @@ func TestPostHandler(t *testing.T) {
 				key := strings.TrimPrefix(resultString, cfg.BaseURL+"/")
 
 				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
-				originalURL, _ := repo.GetOriginalURL(request.Context(), key)
+				shortURL, _ := repo.GetShortURL(request.Context(), key)
 
 				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
-				originalParsedURL, _ := url.Parse(originalURL)
+				originalParsedURL, _ := url.Parse(shortURL.OriginalURL)
 				bodyParsedURL, _ := url.Parse(test.body)
 
 				// Проверяем, что длина репозитория увеличилась на 1

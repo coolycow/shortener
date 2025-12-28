@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"math/rand"
 	"strconv"
 	"sync"
 
@@ -53,7 +52,7 @@ func NewDoubleMapsRepository(filename string) *DoubleMapsRepository {
 }
 
 // AddURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) AddURL(_ context.Context, userID int, originalURL string, key string) (string, bool, error) {
+func (r *DoubleMapsRepository) AddURL(_ context.Context, userID string, originalURL string, key string) (string, bool, error) {
 	if (key == "") || (originalURL == "") {
 		return "", false, errors.New("key or originalURL is empty")
 	}
@@ -74,7 +73,7 @@ func (r *DoubleMapsRepository) AddURL(_ context.Context, userID int, originalURL
 }
 
 // SaveURL сохраняет соответствие между короткой и оригинальной ссылкой
-func (r *DoubleMapsRepository) SaveURL(_ context.Context, userID int, originalURL string, key string) (string, bool, error) {
+func (r *DoubleMapsRepository) SaveURL(_ context.Context, userID string, originalURL string, key string) (string, bool, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -111,7 +110,7 @@ func (r *DoubleMapsRepository) SaveURL(_ context.Context, userID int, originalUR
 
 // SaveManyURL сохраняет множество пар короткой и оригинальной ссылок
 // В массиве URLs происходит замена ключей в случае дублирования исходных URL.
-func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, userID int, URLs []model.ShortURL) error {
+func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, userID string, URLs []model.ShortURL) error {
 	for i, u := range URLs {
 		resultKey, _, err := r.AddURL(ctx, userID, u.OriginalURL, u.Key)
 
@@ -135,17 +134,20 @@ func (r *DoubleMapsRepository) SaveManyURL(ctx context.Context, userID int, URLs
 	return nil
 }
 
-// GetOriginalURL получает оригинальный URL по ключу
-func (r *DoubleMapsRepository) GetOriginalURL(_ context.Context, key string) (string, bool) {
+// GetShortURL получает оригинальный URL по ключу
+func (r *DoubleMapsRepository) GetShortURL(_ context.Context, key string) (model.ShortURL, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	originalURL, exists := r.keyToOriginal[key]
-	return originalURL, exists
+	return model.ShortURL{
+		Key:         key,
+		OriginalURL: originalURL,
+	}, exists
 }
 
 // GetKey получает ключ по оригинальному URL
-func (r *DoubleMapsRepository) GetKey(_ context.Context, userID int, originalURL string) (string, bool) {
+func (r *DoubleMapsRepository) GetKey(_ context.Context, userID string, originalURL string) (string, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -154,7 +156,7 @@ func (r *DoubleMapsRepository) GetKey(_ context.Context, userID int, originalURL
 }
 
 // GetManyKeys получает массив найденных ShortURL по массиву исходных ShortURL
-func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID int, URLs []model.ShortURL) ([]model.ShortURL, error) {
+func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID string, URLs []model.ShortURL) ([]model.ShortURL, error) {
 	// Если массив пустой, то просто возвращаем пустой результат
 	if len(URLs) == 0 {
 		return []model.ShortURL{}, nil
@@ -178,7 +180,7 @@ func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID int, URLs
 }
 
 // GetManyShortURLs возвращает все сокращенные URL
-func (r *DoubleMapsRepository) GetManyShortURLs(ctx context.Context, userID int) ([]model.ShortURL, error) {
+func (r *DoubleMapsRepository) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -225,10 +227,27 @@ func (r *DoubleMapsRepository) Ping(_ context.Context) error {
 }
 
 // GetUser возвращает пользователя по его ID
-func (r *DoubleMapsRepository) GetUser(_ context.Context, userID int) (model.User, error) {
+func (r *DoubleMapsRepository) GetUser(_ context.Context, userID string) (model.User, error) {
 	return model.User{ID: userID}, nil
 }
 
 func (r *DoubleMapsRepository) CreateUser(_ context.Context) (model.User, error) {
-	return model.User{ID: rand.Int()}, nil
+	return model.User{ID: uuid.New().String()}, nil
+}
+
+func (r *DoubleMapsRepository) DeleteManyURLs(ctx context.Context, userID string, keys []string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for _, key := range keys {
+		if _, exists := r.keyToOriginal[key]; exists {
+			if _, exists := r.originalToKey[r.keyToOriginal[key]]; exists {
+				delete(r.originalToKey, r.keyToOriginal[key])
+			}
+
+			delete(r.keyToOriginal, key)
+		}
+	}
+
+	return nil
 }

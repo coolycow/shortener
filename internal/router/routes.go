@@ -26,4 +26,5 @@ func setupURLRoutes(
 	r.POST("/api/shorten/batch", middleware.OptionalAuthMiddleware(cookieService), handler.PostAPIShortenBatchHandler(srv))
 
 	r.GET("/api/user/urls", middleware.OptionalAuthMiddleware(cookieService), handler.GetAPIUserURLs(srv))
+	r.DELETE("/api/user/urls", middleware.OptionalAuthMiddleware(cookieService), handler.DeleteAPIUserURLs(srv))
 }
