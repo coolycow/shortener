@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/coolycow/shortener/internal/config"
 	error2 "github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/repository"
+	"go.uber.org/zap"
 )
 
 // URLService Сервис для работы в Handler
@@ -192,6 +194,9 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 		return nil
 	}
 
+	// Логируем начало выполнения операции удаления
+	logger.Log.Info("Starting deletion of URLs", zap.String("userID", userID), zap.Int("count", len(keys)))
+
 	// Размер порции для батчинга
 	const batchSize = 100
 
@@ -205,11 +210,25 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 	numWorkers := 5
 
 	// Запускаем воркеры, которые будут обрабатывать порции ключей
+	var wg sync.WaitGroup
 	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+
 		go func() {
+			defer wg.Done()
+
 			for batch := range jobs {
+				logger.Log.Info("Processing batch for deletion", zap.Strings("keys", batch))
+
 				// Передаем порцию ключей в репозиторий для удаления
 				err := s.repo.DeleteManyURLs(ctx, userID, batch)
+
+				if err != nil {
+					logger.Log.Error("Error deleting URLs batch", zap.Error(err))
+				} else {
+					logger.Log.Info("Successfully deleted batch", zap.Strings("keys", batch))
+				}
+
 				results <- err
 			}
 		}()
@@ -231,14 +250,21 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 		}
 	}()
 
-	// Собираем результаты (это и есть fan-in)
+	// Ждем завершения всех воркеров и закрываем канал результатов
 	go func() {
-		defer close(results)
+		wg.Wait()
+		close(results)
+	}()
 
-		// Ждем завершения всех задач
-		for i := 0; i < len(keys)/batchSize+1; i++ {
-			<-results // Просто считываем ошибки, но можно и накапливать их
+	// Собираем результаты и проверяем на наличие ошибок
+	go func() {
+		for err := range results {
+			if err != nil {
+				// Логируем ошибку, но не прерываем процесс
+				logger.Log.Error("Error deleting URLs batch", zap.Error(err))
+			}
 		}
+		logger.Log.Info("All deletion tasks completed")
 	}()
 
 	// Возвращаем сразу, не дожидаясь фактического удаления
