@@ -394,6 +394,12 @@ func (r *PostgresRepository) DeleteManyURLs(ctx context.Context, userID string, 
 		return nil
 	}
 
+	// Начинаем транзакцию
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
 	// Подготавливаем данные для запроса
 	placeholders := make([]string, 0, len(keys))
 	args := make([]interface{}, 0, len(keys)+1)
@@ -407,11 +413,12 @@ func (r *PostgresRepository) DeleteManyURLs(ctx context.Context, userID string, 
 	}
 
 	query := fmt.Sprintf("UPDATE urls SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND deleted_at IS NULL AND key IN (%s)", strings.Join(placeholders, ","))
-	_, err := r.db.ExecContext(ctx, query, args...)
+	_, err = tx.ExecContext(ctx, query, args...)
 
 	if err != nil {
+		_ = tx.Rollback()
 		return err
 	}
 
-	return nil
+	return tx.Commit()
 }
