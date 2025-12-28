@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 
 	"github.com/coolycow/shortener/internal/config"
@@ -201,13 +202,14 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 	const batchSize = 100
 
 	// Создаем канал для задач удаления
-	jobs := make(chan []string, len(keys)/batchSize+1)
+	size := len(keys)/batchSize + 1
+	jobs := make(chan []string, size)
 
 	// Создаем канал для результатов с использованием паттерна fan-in
-	results := make(chan error, len(keys)/batchSize+1)
+	results := make(chan error, size)
 
 	// Количество воркеров
-	numWorkers := 5
+	numWorkers := runtime.NumCPU()
 
 	// Запускаем воркеры, которые будут обрабатывать порции ключей
 	var wg sync.WaitGroup
@@ -257,16 +259,22 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 	}()
 
 	// Собираем результаты и проверяем на наличие ошибок
-	go func() {
-		for err := range results {
-			if err != nil {
-				// Логируем ошибку, но не прерываем процесс
-				logger.Log.Error("Error deleting URLs batch", zap.Error(err))
-			}
+	var hasErrors bool
+	for err := range results {
+		if err != nil {
+			// Логируем ошибку, но не прерываем процесс
+			logger.Log.Error("Error deleting URLs batch", zap.Error(err))
+			hasErrors = true
 		}
-		logger.Log.Info("All deletion tasks completed")
-	}()
+	}
 
-	// Возвращаем сразу, не дожидаясь фактического удаления
+	// Ждем завершения всех воркеров
+	wg.Wait()
+
+	if hasErrors {
+		return fmt.Errorf("some URLs deletion failed")
+	}
+
+	logger.Log.Info("All deletion tasks completed")
 	return nil
 }
