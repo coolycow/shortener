@@ -237,10 +237,17 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 		}()
 	}
 
+	// Добавляем еще одну WaitGroup для отправителя
+	var senderWg sync.WaitGroup
+
+	// Перед запуском горутины-отправителя увеличиваем счетчик
+	senderWg.Add(1)
+
 	// Разбиваем массив ключей на порции и отправляем в канал jobs
 	go func() {
 		defer close(jobs)
-		defer wg.Done()
+
+		defer senderWg.Done() // Уменьшаем счетчик при завершении
 
 		for i := 0; i < len(keys); i += batchSize {
 			end := i + batchSize
@@ -270,7 +277,8 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 		}
 	}
 
-	// Ждем завершения всех воркеров
+	// Ждем завершения отправителя и всех воркеров
+	senderWg.Wait()
 	wg.Wait()
 
 	if hasErrors {

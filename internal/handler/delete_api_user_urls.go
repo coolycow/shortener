@@ -32,7 +32,7 @@ func DeleteAPIUserURLs(service service.URLService) gin.HandlerFunc {
 		if err != nil {
 			_ = c.Error(error.CustomError{
 				Message:    err.Error(),
-				StatusCode: http.StatusUnauthorized,
+				StatusCode: http.StatusInternalServerError,
 			})
 			return
 		}
