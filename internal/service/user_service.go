@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/coolycow/shortener/internal/config"
@@ -68,7 +69,7 @@ func (s *userService) GetUserIDFromCookie(cookie *http.Cookie) (string, error) {
 	// Декодируем hex
 	data, err := hex.DecodeString(cookieValue)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decode hex cookie value: %w", err)
 	}
 
 	if len(data) == 0 {
@@ -79,12 +80,12 @@ func (s *userService) GetUserIDFromCookie(cookie *http.Cookie) (string, error) {
 
 	aesBlock, err := aes.NewCipher(key[:])
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
 	aesGCM, err := cipher.NewGCM(aesBlock)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create GCM cipher: %w", err)
 	}
 
 	// создаём вектор инициализации
@@ -114,18 +115,18 @@ func (s *userService) GetCookieValueByUserID(userID string) (string, error) {
 
 	aesBlock, err := aes.NewCipher(key[:])
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
 	aesGCM, err := cipher.NewGCM(aesBlock)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create GCM cipher: %w", err)
 	}
 
 	// создаём вектор инициализации
 	nonce, err := generateRandom(aesGCM.NonceSize())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to generate random nonce: %w", err)
 	}
 
 	dst := aesGCM.Seal(nil, nonce, []byte(userID), nil)

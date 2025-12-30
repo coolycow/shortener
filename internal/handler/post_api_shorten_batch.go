@@ -7,6 +7,7 @@ import (
 
 	"github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
+	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
@@ -44,11 +45,11 @@ func PostAPIShortenBatchHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		userID, err := getUserIDFromGinContext(c)
+		userID, err := middleware.GetUserIDFromGinContext(c)
 		if err != nil {
 			_ = c.Error(error.CustomError{
 				Message:    err.Error(),
-				StatusCode: http.StatusUnauthorized,
+				StatusCode: http.StatusInternalServerError,
 			})
 			return
 		}

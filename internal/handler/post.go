@@ -1,32 +1,16 @@
 package handler
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
-	errors2 "github.com/coolycow/shortener/internal/error"
+	"github.com/coolycow/shortener/internal/error"
+	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
-
-func getUserIDFromGinContext(c *gin.Context) (string, error) {
-	value, exists := c.Get("userID")
-
-	if !exists || value == nil {
-		return "", errors.New("user ID not found in context")
-	}
-
-	userID, ok := value.(string)
-
-	if !ok {
-		return "", errors.New("incorrect user ID in context")
-	}
-
-	return userID, nil
-}
 
 // PostHandler обрабатывает POST-запросы к серверу
 func PostHandler(service service.URLService) gin.HandlerFunc {
@@ -35,7 +19,7 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 		// Учитываем, что "Content-Type" может содержать и другие значения, например, charset=utf-8
 		contentType := c.GetHeader("Content-Type")
 		if !strings.HasPrefix(contentType, "text/plain") {
-			_ = c.Error(errors2.CustomError{
+			_ = c.Error(error.CustomError{
 				Message:    "Content type not allowed",
 				StatusCode: http.StatusUnsupportedMediaType,
 			})
@@ -46,7 +30,7 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 		body, err := io.ReadAll(c.Request.Body)
 
 		if err != nil {
-			_ = c.Error(errors2.CustomError{
+			_ = c.Error(error.CustomError{
 				Message:    err.Error(),
 				StatusCode: http.StatusBadRequest,
 			})
@@ -55,7 +39,7 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 
 		// Проверяем, что не пришла пустота
 		if len(body) == 0 {
-			_ = c.Error(errors2.CustomError{
+			_ = c.Error(error.CustomError{
 				Message:    "Empty body",
 				StatusCode: http.StatusBadRequest,
 			})
@@ -66,7 +50,7 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 		trimBody := strings.TrimSpace(string(body))
 
 		if trimBody == "" {
-			_ = c.Error(errors2.CustomError{
+			_ = c.Error(error.CustomError{
 				Message:    "Empty URL",
 				StatusCode: http.StatusBadRequest,
 			})
@@ -77,18 +61,18 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 		validURL, err := url.ParseRequestURI(trimBody)
 
 		if err != nil {
-			_ = c.Error(errors2.CustomError{
+			_ = c.Error(error.CustomError{
 				Message:    "Invalid URL",
 				StatusCode: http.StatusBadRequest,
 			})
 			return
 		}
 
-		userID, err := getUserIDFromGinContext(c)
+		userID, err := middleware.GetUserIDFromGinContext(c)
 		if err != nil {
-			_ = c.Error(errors2.CustomError{
+			_ = c.Error(error.CustomError{
 				Message:    err.Error(),
-				StatusCode: http.StatusUnauthorized,
+				StatusCode: http.StatusInternalServerError,
 			})
 			return
 		}

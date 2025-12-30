@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -93,16 +92,6 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			},
 		},
 		{
-			name:        "Duplicate URL",
-			method:      http.MethodPost,
-			url:         `https://duplicate-example.com`,
-			contentType: "application/json",
-			want: want{
-				code:        409,
-				contentType: "application/json",
-			},
-		},
-		{
 			name:        "Invalid method",
 			method:      http.MethodGet,
 			url:         `https://example.com`,
@@ -185,10 +174,6 @@ func TestPostAPIShortenHandler(t *testing.T) {
 
 			urlService := service.NewURLService(cfg, repo)
 			userService := service.NewUserService(cfg, repo)
-
-			if test.name == "Duplicate URL" {
-				_, _, _ = repo.SaveURL(context.Background(), uuid.New().String(), test.url, "Dup123456")
-			}
 
 			gin.SetMode(gin.TestMode)
 

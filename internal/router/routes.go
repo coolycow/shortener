@@ -19,12 +19,16 @@ func setupURLRoutes(
 
 	r.GET("/ping", handler.PingHandler(srv))
 
-	r.POST("/", middleware.OptionalAuthMiddleware(cookieService), handler.PostHandler(srv))
-	r.GET("/:key", middleware.OptionalAuthMiddleware(cookieService), handler.GetHandler(srv))
+	// Группа маршрутов с опциональной аутентификацией
+	authGroup := r.Group("/")
+	authGroup.Use(middleware.OptionalAuthMiddleware(cookieService))
 
-	r.POST("/api/shorten", middleware.OptionalAuthMiddleware(cookieService), handler.PostAPIShortenHandler(srv))
-	r.POST("/api/shorten/batch", middleware.OptionalAuthMiddleware(cookieService), handler.PostAPIShortenBatchHandler(srv))
+	authGroup.POST("/", handler.PostHandler(srv))
+	authGroup.GET("/:key", handler.GetHandler(srv))
 
-	r.GET("/api/user/urls", middleware.OptionalAuthMiddleware(cookieService), handler.GetAPIUserURLs(srv))
-	r.DELETE("/api/user/urls", middleware.OptionalAuthMiddleware(cookieService), handler.DeleteAPIUserURLs(srv))
+	authGroup.POST("/api/shorten", handler.PostAPIShortenHandler(srv))
+	authGroup.POST("/api/shorten/batch", handler.PostAPIShortenBatchHandler(srv))
+
+	authGroup.GET("/api/user/urls", handler.GetAPIUserURLs(srv))
+	authGroup.DELETE("/api/user/urls", handler.DeleteAPIUserURLs(srv))
 }

@@ -2,13 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"sync"
 
 	"github.com/coolycow/shortener/internal/config"
-	error2 "github.com/coolycow/shortener/internal/error"
+	httpError "github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/repository"
@@ -47,7 +48,7 @@ func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService
 func (s *urlService) GetShortURL(ctx context.Context, key string) (model.ShortURL, error) {
 	// Если key пустой, то возвращаем ошибку 400
 	if key == "" {
-		return model.ShortURL{}, error2.CustomError{
+		return model.ShortURL{}, httpError.CustomError{
 			Message:    "key is required",
 			StatusCode: http.StatusBadRequest}
 	}
@@ -56,7 +57,7 @@ func (s *urlService) GetShortURL(ctx context.Context, key string) (model.ShortUR
 
 	// Если запись не найдена, то возвращаем ошибку 404
 	if !exists {
-		return model.ShortURL{}, error2.CustomError{
+		return model.ShortURL{}, httpError.CustomError{
 			Message:    fmt.Sprintf("key %s does not exist", key),
 			StatusCode: http.StatusNotFound,
 		}
@@ -70,8 +71,8 @@ func (s *urlService) GetManyShortURLs(ctx context.Context, userID string) ([]mod
 	urls, err := s.repo.GetManyShortURLs(ctx, userID)
 
 	if err != nil {
-		return []model.ShortURL{}, error2.CustomError{
-			Message:    "Internal Server Error",
+		return []model.ShortURL{}, httpError.CustomError{
+			Message:    http.StatusText(http.StatusInternalServerError),
 			StatusCode: http.StatusInternalServerError,
 		}
 	}
@@ -91,8 +92,8 @@ func (s *urlService) CreateShortURL(ctx context.Context, userID string, original
 
 	// Произошла ошибка генерации
 	if err != nil {
-		return "", error2.CustomError{
-			Message:    "Internal Server Error",
+		return "", httpError.CustomError{
+			Message:    http.StatusText(http.StatusInternalServerError),
 			StatusCode: http.StatusInternalServerError,
 		}
 	}
@@ -104,14 +105,14 @@ func (s *urlService) CreateShortURL(ctx context.Context, userID string, original
 
 	if err != nil {
 		logger.Log.Error(err.Error())
-		return "", error2.CustomError{
-			Message:    "Internal Server Error",
+		return "", httpError.CustomError{
+			Message:    http.StatusText(http.StatusInternalServerError),
 			StatusCode: http.StatusInternalServerError,
 		}
 	}
 
 	if hasConflict {
-		return "", error2.CustomError{
+		return "", httpError.CustomError{
 			Message:    s.cfg.BaseURL + "/" + resultKey,
 			StatusCode: http.StatusConflict,
 		}
@@ -127,7 +128,7 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs
 	exists, err := s.repo.GetManyKeys(ctx, userID, URLs)
 
 	if err != nil {
-		return error2.CustomError{
+		return httpError.CustomError{
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
 		}
@@ -160,8 +161,8 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs
 			s.cfg.RandomStringMaxGenerationAttempts)
 
 		if err != nil {
-			return error2.CustomError{
-				Message:    "Internal Server Error",
+			return httpError.CustomError{
+				Message:    http.StatusText(http.StatusInternalServerError),
 				StatusCode: http.StatusInternalServerError,
 			}
 		}
@@ -239,6 +240,7 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 	// Разбиваем массив ключей на порции и отправляем в канал jobs
 	go func() {
 		defer close(jobs)
+		defer wg.Done()
 
 		for i := 0; i < len(keys); i += batchSize {
 			end := i + batchSize
@@ -272,7 +274,7 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 	wg.Wait()
 
 	if hasErrors {
-		return fmt.Errorf("some URLs deletion failed")
+		return errors.New("some URLs deletion failed")
 	}
 
 	logger.Log.Info("All deletion tasks completed")

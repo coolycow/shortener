@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	error2 "github.com/coolycow/shortener/internal/error"
+	httpError "github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
 	"go.uber.org/zap"
 )
@@ -63,7 +63,7 @@ func parseOriginalURL(originalURL string) (string, error) {
 
 	if trimURL == "" {
 		logger.Log.Debug("trim URL is empty")
-		return "", error2.CustomError{
+		return "", httpError.CustomError{
 			Message:    "Empty URL",
 			StatusCode: http.StatusBadRequest,
 		}
@@ -74,7 +74,7 @@ func parseOriginalURL(originalURL string) (string, error) {
 
 	if err != nil {
 		logger.Log.Debug("invalid URL", zap.Error(err))
-		return "", error2.CustomError{
+		return "", httpError.CustomError{
 			Message:    "Invalid URL",
 			StatusCode: http.StatusBadRequest,
 		}

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	httpError "github.com/coolycow/shortener/internal/error"
@@ -9,6 +10,28 @@ import (
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
+
+type ginKey string
+
+const (
+	UserIDKey ginKey = "userID"
+)
+
+func GetUserIDFromGinContext(c *gin.Context) (string, error) {
+	value, exists := c.Get(string(UserIDKey))
+
+	if !exists || value == nil {
+		return "", errors.New("user ID not found in context")
+	}
+
+	userID, ok := value.(string)
+
+	if !ok {
+		return "", errors.New("incorrect user ID in context")
+	}
+
+	return userID, nil
+}
 
 func createUserAndCookieValue(ctx context.Context, userService service.UserService) (model.User, string, error) {
 	user, err := userService.CreateUser(ctx)
@@ -48,7 +71,7 @@ func OptionalAuthMiddleware(userService service.UserService) gin.HandlerFunc {
 				HttpOnly: true,
 			})
 
-			c.Set("userID", user.ID)
+			c.Set(string(UserIDKey), user.ID)
 		} else {
 			// Проверяем валидность куки
 			userID, err := userService.GetUserIDFromCookie(cookie)
@@ -85,7 +108,7 @@ func OptionalAuthMiddleware(userService service.UserService) gin.HandlerFunc {
 				return
 			}
 
-			c.Set("userID", userID)
+			c.Set(string(UserIDKey), userID)
 		}
 
 		c.Next()
@@ -120,7 +143,7 @@ func RequiredAuthMiddleware(userService service.UserService) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("userID", userID)
+		c.Set(string(UserIDKey), userID)
 
 		c.Next()
 	}

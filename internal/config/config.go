@@ -86,7 +86,7 @@ func InitConfig() (*Config, error) {
 
 // initConfigWithEnv получение настроек из переменных окружения
 func initConfigWithEnv(config *Config) (*Config, error) {
-	if host := os.Getenv("HOST"); host != "" {
+	if host, present := os.LookupEnv("HOST"); present {
 		config.Host = host
 	}
 
@@ -95,11 +95,11 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		return nil, err
 	}
 
-	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
+	if baseURL, present := os.LookupEnv("BASE_URL"); present {
 		config.BaseURL = baseURL
 	}
 
-	if secretKey := os.Getenv("SECRET_KEY"); secretKey != "" {
+	if secretKey, present := os.LookupEnv("SECRET_KEY"); present {
 		config.SecretKey = secretKey
 	}
 
@@ -118,7 +118,7 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		return nil, err
 	}
 
-	if serverAddress := os.Getenv("SERVER_ADDRESS"); serverAddress != "" {
+	if serverAddress, present := os.LookupEnv("SERVER_ADDRESS"); present {
 		host, port, err := splitServerAddress(serverAddress)
 
 		if err != nil {
@@ -129,19 +129,19 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.Port = port
 	}
 
-	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+	if logLevel, present := os.LookupEnv("LOG_LEVEL"); present {
 		config.LogLevel = logLevel
 	}
 
-	if fileStoragePath := os.Getenv("FILE_STORAGE_PATH"); fileStoragePath != "" {
+	if fileStoragePath, present := os.LookupEnv("FILE_STORAGE_PATH"); present {
 		config.FileStoragePath = fileStoragePath
 	}
 
-	if databaseDSN := os.Getenv("DATABASE_DSN"); databaseDSN != "" {
+	if databaseDSN, present := os.LookupEnv("DATABASE_DSN"); present {
 		config.DatabaseDSN = databaseDSN
 	}
 
-	if runMigrations := os.Getenv("RUN_MIGRATIONS"); runMigrations != "" {
+	if runMigrations, present := os.LookupEnv("RUN_MIGRATIONS"); present {
 		config.RunMigrations, _ = strconv.ParseBool(runMigrations)
 	}
 
@@ -188,7 +188,7 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 
 // parseIntFromEnv парсит int-значение из переменной окружения и устанавливает его в поле конфигурации
 func parseIntFromEnv(config *Config, envKey string, setter func(*Config, int)) error {
-	if value := os.Getenv(envKey); value != "" {
+	if value, present := os.LookupEnv(envKey); present {
 		intValue, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid env %s %s", envKey, value)
