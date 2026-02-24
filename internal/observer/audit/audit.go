@@ -6,31 +6,30 @@ import (
 	"github.com/coolycow/shortener/internal/model"
 )
 
-// Действия для события аудита
+// Константы типа действия в событии аудита.
 const (
-	ActionShorten = "shorten"
-	ActionFollow  = "follow"
+	ActionShorten = "shorten" // создание короткой ссылки
+	ActionFollow  = "follow" // переход по короткой ссылке
 )
 
-// Receiver — интерфейс приёмника аудита (наблюдатель).
-// Реализации: запись в файл, отправка на URL.
+// Receiver — приёмник событий аудита (файл, HTTP и т.д.).
 type Receiver interface {
 	Send(event *model.Audit) error
 }
 
-// Notifier — субъект: хранит список приёмников и рассылает им события.
+// Notifier рассылает события аудита всем зарегистрированным приёмникам.
 type Notifier struct {
 	receivers []Receiver
 }
 
-// Notify отправляет событие во все зарегистрированные приёмники.
+// Notify отправляет событие во все приёмники (ошибки приёмников игнорируются).
 func (n *Notifier) Notify(event *model.Audit) {
 	for _, r := range n.receivers {
 		_ = r.Send(event) // по заданию можно не блокировать из-за ошибки приёмника
 	}
 }
 
-// NewEvent создаёт событие аудита с текущим timestamp.
+// NewEvent создаёт событие аудита с текущим временем (action: ActionShorten или ActionFollow).
 func NewEvent(action, userID, originalURL string) *model.Audit {
 	return &model.Audit{
 		TS:     int(time.Now().Unix()),
@@ -40,8 +39,7 @@ func NewEvent(action, userID, originalURL string) *model.Audit {
 	}
 }
 
-// NewNotifier создаёт Notifier и добавляет приёмники по конфигу.
-// auditFile != "" — добавляется приёмник в файл, auditURL != "" — на удалённый сервер.
+// NewNotifier создаёт Notifier: при auditFile != "" — запись в файл, при auditURL != "" — отправка на URL.
 func NewNotifier(auditFile, auditURL string) *Notifier {
 	n := &Notifier{receivers: nil}
 

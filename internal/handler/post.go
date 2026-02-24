@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PostHandler обрабатывает POST-запросы к серверу
+// PostHandler возвращает обработчик POST / — сокращение URL из тела запроса (Content-Type: text/plain).
 func PostHandler(service service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - text/plain

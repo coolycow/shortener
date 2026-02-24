@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// PostAPIShortenBatchHandler обрабатывает POST-запросы к серверу
+// PostAPIShortenBatchHandler возвращает обработчик POST /api/shorten/batch — пакетное сокращение URL (JSON-массив с correlation_id, original_url).
 func PostAPIShortenBatchHandler(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json

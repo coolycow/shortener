@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// PostAPIShortenHandler обрабатывает POST-запросы к серверу
+// PostAPIShortenHandler возвращает обработчик POST /api/shorten — сокращение URL (JSON: {"url": "..."}).
 func PostAPIShortenHandler(service service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json

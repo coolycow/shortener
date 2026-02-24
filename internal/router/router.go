@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// NewRouter создаёт HTTP-роутер с маршрутами сервиса коротких ссылок, gzip, логированием и pprof.
 func NewRouter(cfg *config.Config, repo repository.URLRepository, auditNotifier *audit.Notifier) *gin.Engine {
 	router := gin.Default()
 

@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// URLService Сервис для работы в Handler
+// URLService — интерфейс бизнес-логики: создание и получение коротких ссылок, пинг хранилища, удаление.
 type URLService interface {
 	GetShortURL(ctx context.Context, key string) (model.ShortURL, error)
 	GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error)
@@ -37,7 +37,7 @@ type urlService struct {
 	cfg  *config.Config
 }
 
-// NewURLService инициализация сервиса
+// NewURLService создаёт реализацию URLService для использования в хендлерах.
 func NewURLService(cfg *config.Config, repo repository.URLRepository) URLService {
 	return &urlService{
 		repo: repo,

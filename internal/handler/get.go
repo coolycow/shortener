@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetHandler Обрабатываем GET-запросы к серверу.
+// GetHandler возвращает обработчик GET /:key — редирект по короткой ссылке на оригинальный URL.
 func GetHandler(service service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Получаем ключ из URL

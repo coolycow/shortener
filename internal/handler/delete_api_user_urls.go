@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeleteAPIUserURLs удаляет сокращенные URL по их идентификатору
+// DeleteAPIUserURLs возвращает обработчик DELETE /api/user/urls — мягкое удаление URL по списку коротких ключей (JSON-массив строк).
 func DeleteAPIUserURLs(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json
