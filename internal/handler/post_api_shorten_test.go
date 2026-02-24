@@ -16,6 +16,7 @@ import (
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/model"
+	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/contrib/gzip"
@@ -163,6 +164,8 @@ func TestPostAPIShortenHandler(t *testing.T) {
 
 	cfg, _ := config.InitConfig()
 
+	auditNotifier := audit.NewNotifier("", "")
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Временный файл для хранилища
@@ -182,7 +185,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			router.Use(middleware.ErrorHandler())
 			router.Use(middleware.RequestGzip())
 			router.Use(middleware.OptionalAuthMiddleware(userService))
-			router.POST("/api/shorten", PostAPIShortenHandler(urlService))
+			router.POST("/api/shorten", PostAPIShortenHandler(urlService, auditNotifier))
 
 			var request *http.Request
 

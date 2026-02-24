@@ -8,12 +8,13 @@ import (
 
 	"github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/middleware"
+	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // PostHandler обрабатывает POST-запросы к серверу
-func PostHandler(service service.URLService) gin.HandlerFunc {
+func PostHandler(service service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - text/plain
 		// Учитываем, что "Content-Type" может содержать и другие значения, например, charset=utf-8
@@ -68,6 +69,7 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
+		// Получаем идентификатор пользователя из контекста
 		userID, err := middleware.GetUserIDFromGinContext(c)
 		if err != nil {
 			_ = c.Error(error.CustomError{
@@ -86,5 +88,9 @@ func PostHandler(service service.URLService) gin.HandlerFunc {
 
 		// Формируем ответ
 		c.String(http.StatusCreated, shortURL)
+
+		// Отправляем событие аудита
+		event := audit.NewEvent(audit.ActionShorten, userID, validURL.String())
+		auditNotifier.Notify(event)
 	}
 }
