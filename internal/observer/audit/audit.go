@@ -33,7 +33,7 @@ func (n *Notifier) Notify(event *model.Audit) {
 // NewEvent создаёт событие аудита с текущим timestamp.
 func NewEvent(action, userID, originalURL string) *model.Audit {
 	return &model.Audit{
-		Ts:     int(time.Now().Unix()),
+		TS:     int(time.Now().Unix()),
 		Action: action,
 		UserID: userID,
 		URL:    originalURL,
