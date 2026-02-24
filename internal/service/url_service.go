@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/coolycow/shortener/internal/config"
@@ -113,12 +114,17 @@ func (s *urlService) CreateShortURL(ctx context.Context, userID string, original
 
 	if hasConflict {
 		return "", httpError.CustomError{
-			Message:    s.cfg.BaseURL + "/" + resultKey,
+			//Message: s.cfg.BaseURL + "/" + resultKey,
+			Message:    buildFullURL(s.cfg.BaseURL, resultKey),
 			StatusCode: http.StatusConflict,
 		}
 	}
 
-	return s.cfg.BaseURL + "/" + resultKey, nil
+	// До оптимизации
+	//return s.cfg.BaseURL + "/" + resultKey, nil
+
+	// Оптимизированный вариант
+	return buildFullURL(s.cfg.BaseURL, resultKey), nil
 }
 
 // CreateManyShortURL создание множества пар для пользователя.
@@ -142,13 +148,25 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs
 	}
 
 	// Разделяем URL на существующие и новые в виде массива newURLs
-	var newURLs []model.ShortURL
+
+	// До оптимизации
+	// var newURLs []model.ShortURL
+
+	// Оптимизированный вариант
+	newURLs := make([]model.ShortURL, 0, len(URLs))
+
 	for i, u := range URLs {
 		if key, found := existingURLs[u.OriginalURL]; found {
 			URLs[i].Key = key
 		} else {
 			newURLs = append(newURLs, u)
 		}
+	}
+
+	// Оптимизированный вариант
+	urlIndexByOriginal := make(map[string]int, len(URLs))
+	for idx := range URLs {
+		urlIndexByOriginal[URLs[idx].OriginalURL] = idx
 	}
 
 	for i := range newURLs {
@@ -168,12 +186,17 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs
 		}
 
 		// Находим индекс в исходном массиве и обновляем ключ
-		for j := range URLs {
-			if URLs[j].OriginalURL == newURLs[i].OriginalURL && URLs[j].Key == "" {
-				URLs[j].Key = key
-				break
-			}
-		}
+		// До оптимизации
+		// for j := range URLs {
+		//	if URLs[j].OriginalURL == newURLs[i].OriginalURL && URLs[j].Key == "" {
+		//		URLs[j].Key = key
+		//		break
+		//	}
+		//}
+
+		// Оптимизированный вариант
+		idx := urlIndexByOriginal[newURLs[i].OriginalURL]
+		URLs[idx].Key = key
 	}
 
 	return s.repo.SaveManyURL(ctx, userID, URLs)
@@ -287,4 +310,15 @@ func (s *urlService) DeleteManyURLs(ctx context.Context, userID string, keys []s
 
 	logger.Log.Info("All deletion tasks completed")
 	return nil
+}
+
+// buildFullURL собирает BaseURL + "/" + key без лишних аллокаций.
+func buildFullURL(baseURL, key string) string {
+	n := len(baseURL) + 1 + len(key)
+	var sb strings.Builder
+	sb.Grow(n)
+	sb.WriteString(baseURL)
+	sb.WriteByte('/')
+	sb.WriteString(key)
+	return sb.String()
 }
