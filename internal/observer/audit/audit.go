@@ -9,7 +9,7 @@ import (
 // Константы типа действия в событии аудита.
 const (
 	ActionShorten = "shorten" // создание короткой ссылки
-	ActionFollow  = "follow" // переход по короткой ссылке
+	ActionFollow  = "follow"  // переход по короткой ссылке
 )
 
 // Receiver — приёмник событий аудита (файл, HTTP и т.д.).

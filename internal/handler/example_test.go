@@ -99,6 +99,7 @@ func ExampleGetHandler() {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	resp := w.Result()
+	resp.Body.Close()
 	location := resp.Header.Get("Location")
 	fmt.Println(resp.StatusCode, location)
 	// Output: 307 https://yandex.ru
