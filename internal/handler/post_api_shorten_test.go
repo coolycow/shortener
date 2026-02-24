@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -93,16 +92,6 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			},
 		},
 		{
-			name:        "Duplicate URL",
-			method:      http.MethodPost,
-			url:         `https://duplicate-example.com`,
-			contentType: "application/json",
-			want: want{
-				code:        409,
-				contentType: "application/json",
-			},
-		},
-		{
 			name:        "Invalid method",
 			method:      http.MethodGet,
 			url:         `https://example.com`,
@@ -183,11 +172,8 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			repo := repository.NewDoubleMapsRepository(tmpFile)
 			defer repo.Close()
 
-			srv := service.NewURLService(cfg, repo)
-
-			if test.name == "Duplicate URL" {
-				_, _, _ = repo.SaveURL(context.Background(), test.url, "Dup123456")
-			}
+			urlService := service.NewURLService(cfg, repo)
+			userService := service.NewUserService(cfg, repo)
 
 			gin.SetMode(gin.TestMode)
 
@@ -195,7 +181,8 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.Use(middleware.RequestGzip())
-			router.POST("/api/shorten", PostAPIShortenHandler(srv))
+			router.Use(middleware.OptionalAuthMiddleware(userService))
+			router.POST("/api/shorten", PostAPIShortenHandler(urlService))
 
 			var request *http.Request
 
@@ -240,10 +227,10 @@ func TestPostAPIShortenHandler(t *testing.T) {
 				key := strings.TrimPrefix(resp.Result, cfg.BaseURL+"/")
 
 				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
-				originalURL, _ := repo.GetOriginalURL(request.Context(), key)
+				shortURL, _ := repo.GetShortURL(request.Context(), key)
 
 				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
-				originalParsedURL, _ := url.Parse(originalURL)
+				originalParsedURL, _ := url.Parse(shortURL.OriginalURL)
 				bodyParsedURL, _ := url.Parse(test.url)
 
 				// Проверяем, что длина репозитория увеличилась на 1

@@ -168,10 +168,11 @@ func TestPostHandler(t *testing.T) {
 			repo := repository.NewDoubleMapsRepository(tmpFile)
 			defer repo.Close()
 
-			srv := service.NewURLService(cfg, repo)
+			urlService := service.NewURLService(cfg, repo)
+			userService := service.NewUserService(cfg, repo)
 
 			if test.name == "Duplicate URL" {
-				_, _, _ = repo.SaveURL(context.Background(), test.body, "Dup123456")
+				_, _, _ = repo.SaveURL(context.Background(), uuid.New().String(), test.body, "Dup123456")
 			}
 
 			gin.SetMode(gin.TestMode)
@@ -179,7 +180,8 @@ func TestPostHandler(t *testing.T) {
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
-			router.POST("/", PostHandler(srv))
+			router.Use(middleware.OptionalAuthMiddleware(userService))
+			router.POST("/", PostHandler(urlService))
 
 			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", test.contentType)
@@ -205,10 +207,10 @@ func TestPostHandler(t *testing.T) {
 				key := strings.TrimPrefix(resultString, cfg.BaseURL+"/")
 
 				// Получаем из репозитория оригинальную ссылку по ключу короткой ссылки
-				originalURL, _ := repo.GetOriginalURL(request.Context(), key)
+				shortURL, _ := repo.GetShortURL(request.Context(), key)
 
 				// Парсим URL из строки, чтобы корректно сравнивать кириллические адреса
-				originalParsedURL, _ := url.Parse(originalURL)
+				originalParsedURL, _ := url.Parse(shortURL.OriginalURL)
 				bodyParsedURL, _ := url.Parse(test.body)
 
 				// Проверяем, что длина репозитория увеличилась на 1

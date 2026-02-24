@@ -41,6 +41,8 @@ func main() {
 			if err = repo.RunMigrations(); err != nil {
 				log.Fatalf("Failed to run migrations: %v", err)
 			}
+			logger.Log.Info("Run migrations succeeded")
+			return
 		}
 	} else {
 		repo = repository.NewDoubleMapsRepository(cfg.FileStoragePath)

@@ -23,6 +23,7 @@ type Config struct {
 	FileStoragePath                   string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN                       string `env:"DATABASE_DSN"`
 	RunMigrations                     bool   `env:"RUN_MIGRATIONS"`
+	SecretKey                         string `env:"SECRET_KEY"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -42,6 +43,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("FileStoragePath: %s\n", c.FileStoragePath)
 	fmt.Printf("DatabaseDSN: %s\n", c.DatabaseDSN)
 	fmt.Printf("RunMigrations: %t\n", c.RunMigrations)
+	fmt.Printf("SecretKey: %s\n", c.SecretKey)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -84,7 +86,7 @@ func InitConfig() (*Config, error) {
 
 // initConfigWithEnv получение настроек из переменных окружения
 func initConfigWithEnv(config *Config) (*Config, error) {
-	if host := os.Getenv("HOST"); host != "" {
+	if host, present := os.LookupEnv("HOST"); present {
 		config.Host = host
 	}
 
@@ -93,8 +95,12 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		return nil, err
 	}
 
-	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
+	if baseURL, present := os.LookupEnv("BASE_URL"); present {
 		config.BaseURL = baseURL
+	}
+
+	if secretKey, present := os.LookupEnv("SECRET_KEY"); present {
+		config.SecretKey = secretKey
 	}
 
 	if err := parseIntFromEnv(config, "RANDOM_STRING_LENGTH",
@@ -112,7 +118,7 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		return nil, err
 	}
 
-	if serverAddress := os.Getenv("SERVER_ADDRESS"); serverAddress != "" {
+	if serverAddress, present := os.LookupEnv("SERVER_ADDRESS"); present {
 		host, port, err := splitServerAddress(serverAddress)
 
 		if err != nil {
@@ -123,19 +129,19 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.Port = port
 	}
 
-	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+	if logLevel, present := os.LookupEnv("LOG_LEVEL"); present {
 		config.LogLevel = logLevel
 	}
 
-	if fileStoragePath := os.Getenv("FILE_STORAGE_PATH"); fileStoragePath != "" {
+	if fileStoragePath, present := os.LookupEnv("FILE_STORAGE_PATH"); present {
 		config.FileStoragePath = fileStoragePath
 	}
 
-	if databaseDSN := os.Getenv("DATABASE_DSN"); databaseDSN != "" {
+	if databaseDSN, present := os.LookupEnv("DATABASE_DSN"); present {
 		config.DatabaseDSN = databaseDSN
 	}
 
-	if runMigrations := os.Getenv("RUN_MIGRATIONS"); runMigrations != "" {
+	if runMigrations, present := os.LookupEnv("RUN_MIGRATIONS"); present {
 		config.RunMigrations, _ = strconv.ParseBool(runMigrations)
 	}
 
@@ -162,6 +168,7 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 
 	flagSet.StringVarP(&config.DatabaseDSN, "database-dsn", "d", getDefaultDatabaseDSN(), "database DSN")
 	flagSet.BoolVarP(&config.RunMigrations, "run-migrations", "r", false, "run migrations")
+	flagSet.StringVarP(&config.SecretKey, "secret-key", "k", getDefaultSecretKey(), "secret key")
 
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))
@@ -181,7 +188,7 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 
 // parseIntFromEnv парсит int-значение из переменной окружения и устанавливает его в поле конфигурации
 func parseIntFromEnv(config *Config, envKey string, setter func(*Config, int)) error {
-	if value := os.Getenv(envKey); value != "" {
+	if value, present := os.LookupEnv(envKey); present {
 		intValue, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid env %s %s", envKey, value)
@@ -278,4 +285,9 @@ func getDefaultStoragePath() string {
 // getDefaultDatabaseDSN Стандартные настройки подключения к БД
 func getDefaultDatabaseDSN() string {
 	return ""
+}
+
+// getDefaultSecretKey секретный ключ по умолчанию
+func getDefaultSecretKey() string {
+	return "shortener_secret_key"
 }

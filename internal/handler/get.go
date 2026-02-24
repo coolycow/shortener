@@ -15,7 +15,7 @@ func GetHandler(service service.URLService) gin.HandlerFunc {
 		key := strings.TrimSpace(strings.TrimPrefix(c.Param("key"), "/"))
 
 		// Получаем исходный URL по ключу из сервиса
-		rawURL, err := service.GetOriginalURL(c.Request.Context(), key)
+		shortURL, err := service.GetShortURL(c.Request.Context(), key)
 
 		// Сервис возвращает CustomError
 		if err != nil {
@@ -23,8 +23,13 @@ func GetHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
+		if shortURL.DeletedAt != nil {
+			c.Status(http.StatusGone)
+			return
+		}
+
 		// Формируем ответ
-		c.Header("Location", rawURL)
+		c.Header("Location", shortURL.OriginalURL)
 		c.Status(http.StatusTemporaryRedirect)
 	}
 }

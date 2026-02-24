@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/coolycow/shortener/internal/model"
+	"github.com/google/uuid"
 )
 
 type JSONStorage struct {
@@ -26,7 +27,7 @@ func (s *JSONStorage) Load(repo URLRepository) error {
 			return err
 		}
 
-		if _, _, err := repo.AddURL(context.Background(), url.OriginalURL, url.Key); err != nil {
+		if _, _, err := repo.AddURL(context.Background(), uuid.New().String(), url.OriginalURL, url.Key); err != nil {
 			return err
 		}
 	}

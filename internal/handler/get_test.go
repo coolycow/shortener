@@ -17,7 +17,7 @@ import (
 )
 
 // setupFullRepository возвращает репозиторий с заранее сохраненными ключами и соответствующими им URL
-func setupTestService() service.URLService {
+func setupTestService(addDefaultURLs bool) (service.URLService, service.UserService) {
 	cfg, _ := config.InitConfig()
 
 	// Временный файл для хранилища
@@ -27,20 +27,22 @@ func setupTestService() service.URLService {
 	repo := repository.NewDoubleMapsRepository(tmpFile)
 	defer repo.Close()
 
-	defaultURLs := map[string]string{
-		"":          "https://mail.ru",
-		"AAbbCC1":   "https://google.com",
-		"AAbbCC2":   "https://rambler.com",
-		"AAbbCC3":   "https://yandex.com",
-		"AAbbCC3$#": "https:/vk.com",
-		"Dup123456": "https://duplicate-example.com",
+	if addDefaultURLs {
+		defaultURLs := map[string]string{
+			"":          "https://mail.ru",
+			"AAbbCC1":   "https://google.com",
+			"AAbbCC2":   "https://rambler.com",
+			"AAbbCC3":   "https://yandex.com",
+			"AAbbCC3$#": "https:/vk.com",
+			"Dup123456": "https://duplicate-example.com",
+		}
+
+		for key, u := range defaultURLs {
+			_, _, _ = repo.SaveURL(context.Background(), uuid.New().String(), u, key)
+		}
 	}
 
-	for key, u := range defaultURLs {
-		_, _, _ = repo.SaveURL(context.Background(), u, key)
-	}
-
-	return service.NewURLService(cfg, repo)
+	return service.NewURLService(cfg, repo), service.NewUserService(cfg, repo)
 }
 
 func TestGetHandler(t *testing.T) {
@@ -158,11 +160,14 @@ func TestGetHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			urlService, userService := setupTestService(true)
+
 			gin.SetMode(gin.TestMode)
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
-			router.GET("/:key", GetHandler(setupTestService()))
+			router.Use(middleware.OptionalAuthMiddleware(userService))
+			router.GET("/:key", GetHandler(urlService))
 
 			request := httptest.NewRequest(test.method, "/"+test.key, nil)
 

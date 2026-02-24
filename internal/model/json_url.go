@@ -5,16 +5,19 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
-	error2 "github.com/coolycow/shortener/internal/error"
+	httpError "github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
 	"go.uber.org/zap"
 )
 
 type ShortURL struct {
-	CorrelationID string `json:"correlation_id"`
-	OriginalURL   string `json:"original_url"`
-	Key           string `json:"key"`
+	CorrelationID string     `json:"correlation_id"`
+	OriginalURL   string     `json:"original_url"`
+	Key           string     `json:"key"`
+	UserID        string     `json:"user_id"`
+	DeletedAt     *time.Time `json:"deleted_at"`
 }
 
 // UnmarshalJSON нужна для специальной проверки входных данных
@@ -45,6 +48,14 @@ func (s *ShortURL) ToAPIShortenBatchResponse(baseURL string) APIShortenBatchResp
 	}
 }
 
+// ToAPIUserURLsResponse переводит в подходящую структуру ответа
+func (s *ShortURL) ToAPIUserURLsResponse(baseURL string) APIUserURLsResponse {
+	return APIUserURLsResponse{
+		ShortURL:    baseURL + `/` + s.Key,
+		OriginalURL: s.OriginalURL,
+	}
+}
+
 // parseOriginalURL отдельная функция для парсинга исходной URL
 func parseOriginalURL(originalURL string) (string, error) {
 	// Извлекаем строку из тела запроса и проверяем, что она не пуста
@@ -52,7 +63,7 @@ func parseOriginalURL(originalURL string) (string, error) {
 
 	if trimURL == "" {
 		logger.Log.Debug("trim URL is empty")
-		return "", error2.CustomError{
+		return "", httpError.CustomError{
 			Message:    "Empty URL",
 			StatusCode: http.StatusBadRequest,
 		}
@@ -63,7 +74,7 @@ func parseOriginalURL(originalURL string) (string, error) {
 
 	if err != nil {
 		logger.Log.Debug("invalid URL", zap.Error(err))
-		return "", error2.CustomError{
+		return "", httpError.CustomError{
 			Message:    "Invalid URL",
 			StatusCode: http.StatusBadRequest,
 		}

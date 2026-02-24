@@ -8,14 +8,13 @@ import (
 	"github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/middleware"
-	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// PostAPIShortenBatchHandler обрабатывает POST-запросы к серверу
-func PostAPIShortenBatchHandler(service service.URLService) gin.HandlerFunc {
+// DeleteAPIUserURLs удаляет сокращенные URL по их идентификатору
+func DeleteAPIUserURLs(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json
 		contentType := c.GetHeader("Content-Type")
@@ -28,23 +27,7 @@ func PostAPIShortenBatchHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		var URLs []model.ShortURL
-		err := json.NewDecoder(c.Request.Body).Decode(&URLs)
-
-		if err != nil {
-			logger.Log.Error("Error unmarshalling request body", zap.Error(err))
-			_ = c.Error(err)
-			return
-		}
-
-		if len(URLs) == 0 {
-			_ = c.Error(error.CustomError{
-				Message:    "Empty array of URLs",
-				StatusCode: http.StatusBadRequest,
-			})
-			return
-		}
-
+		// Получаем ID пользователя из запроса.
 		userID, err := middleware.GetUserIDFromGinContext(c)
 		if err != nil {
 			_ = c.Error(error.CustomError{
@@ -54,20 +37,24 @@ func PostAPIShortenBatchHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		err = service.CreateManyShortURL(c.Request.Context(), userID, URLs)
+		// Читаем тело запроса
+		var keys []string
+		err = json.NewDecoder(c.Request.Body).Decode(&keys)
 
 		if err != nil {
-			logger.Log.Debug("cannot create short URLs", zap.Error(err))
+			logger.Log.Error("Error decoding request", zap.Error(err))
 			_ = c.Error(err)
 			return
 		}
 
-		responses := make([]model.APIShortenBatchResponse, 0, len(URLs))
+		err = service.DeleteManyURLs(c.Request.Context(), userID, keys)
 
-		for _, u := range URLs {
-			responses = append(responses, u.ToAPIShortenBatchResponse(service.GetBaseURL()))
+		if err != nil {
+			logger.Log.Error("Error deleting URLs", zap.Error(err))
+			_ = c.Error(err)
+			return
 		}
 
-		c.JSON(http.StatusCreated, responses)
+		c.Status(http.StatusAccepted)
 	}
 }
