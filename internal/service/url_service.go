@@ -114,14 +114,10 @@ func (s *urlService) CreateShortURL(ctx context.Context, userID string, original
 
 	if hasConflict {
 		return "", httpError.CustomError{
-			//Message: s.cfg.BaseURL + "/" + resultKey,
 			Message:    buildFullURL(s.cfg.BaseURL, resultKey),
 			StatusCode: http.StatusConflict,
 		}
 	}
-
-	// До оптимизации
-	//return s.cfg.BaseURL + "/" + resultKey, nil
 
 	// Оптимизированный вариант
 	return buildFullURL(s.cfg.BaseURL, resultKey), nil
@@ -148,10 +144,6 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs
 	}
 
 	// Разделяем URL на существующие и новые в виде массива newURLs
-
-	// До оптимизации
-	// var newURLs []model.ShortURL
-
 	// Оптимизированный вариант
 	newURLs := make([]model.ShortURL, 0, len(URLs))
 
@@ -184,15 +176,6 @@ func (s *urlService) CreateManyShortURL(ctx context.Context, userID string, URLs
 				StatusCode: http.StatusInternalServerError,
 			}
 		}
-
-		// Находим индекс в исходном массиве и обновляем ключ
-		// До оптимизации
-		// for j := range URLs {
-		//	if URLs[j].OriginalURL == newURLs[i].OriginalURL && URLs[j].Key == "" {
-		//		URLs[j].Key = key
-		//		break
-		//	}
-		//}
 
 		// Оптимизированный вариант
 		idx := urlIndexByOriginal[newURLs[i].OriginalURL]

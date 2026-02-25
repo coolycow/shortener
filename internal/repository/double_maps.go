@@ -165,9 +165,6 @@ func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID string, U
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	// До оптимизации
-	// var result []model.ShortURL
-
 	// Оптимизированный вариант
 	result := make([]model.ShortURL, 0, len(URLs))
 
@@ -188,9 +185,6 @@ func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID string, U
 func (r *DoubleMapsRepository) GetManyShortURLs(ctx context.Context, userID string) ([]model.ShortURL, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-
-	// До оптимизации
-	// var result []model.ShortURL
 
 	// Оптимизированный вариант
 	result := make([]model.ShortURL, 0, len(r.originalToKey))

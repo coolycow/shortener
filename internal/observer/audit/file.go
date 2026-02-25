@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 
@@ -21,20 +22,23 @@ func NewFileReceiver(path string) *FileReceiver {
 
 // Send добавляет событие в конец файла в виде одной строки JSON.
 func (f *FileReceiver) Send(event *model.Audit) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	data, err := json.Marshal(event)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal audit event: %w", err)
 	}
+	data = append(data, '\n')
 
 	file, err := os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("open audit file %s: %w", f.path, err)
 	}
 	defer file.Close()
 
-	_, err = file.Write(append(data, '\n'))
-	return err
+	f.mu.Lock()
+	_, err = file.Write(data)
+	f.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("write audit event to file: %w", err)
+	}
+	return nil
 }

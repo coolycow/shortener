@@ -1,9 +1,12 @@
 package audit
 
 import (
+	"sync"
 	"time"
 
+	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/model"
+	"go.uber.org/zap"
 )
 
 // Константы типа действия в событии аудита.
@@ -18,14 +21,42 @@ type Receiver interface {
 }
 
 // Notifier рассылает события аудита всем зарегистрированным приёмникам.
+// Потокобезопасен, поддерживает динамическое добавление и удаление приёмников.
 type Notifier struct {
+	mu        sync.RWMutex
 	receivers []Receiver
 }
 
-// Notify отправляет событие во все приёмники (ошибки приёмников игнорируются).
+// Notify отправляет событие во все приёмники (ошибки приёмников не блокируют рассылку).
 func (n *Notifier) Notify(event *model.Audit) {
-	for _, r := range n.receivers {
-		_ = r.Send(event) // по заданию можно не блокировать из-за ошибки приёмника
+	n.mu.RLock()
+	receivers := make([]Receiver, len(n.receivers))
+	copy(receivers, n.receivers)
+	n.mu.RUnlock()
+
+	for _, r := range receivers {
+		if err := r.Send(event); err != nil {
+			logger.Log.Warn("audit receiver error", zap.Error(err))
+		}
+	}
+}
+
+// AddReceiver добавляет новый приёмник.
+func (n *Notifier) AddReceiver(r Receiver) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.receivers = append(n.receivers, r)
+}
+
+// RemoveReceiver удаляет существующий приёмник (первое совпадение по ссылке).
+func (n *Notifier) RemoveReceiver(r Receiver) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for i, recv := range n.receivers {
+		if recv == r {
+			n.receivers = append(n.receivers[:i], n.receivers[i+1:]...)
+			return
+		}
 	}
 }
 
@@ -41,15 +72,12 @@ func NewEvent(action, userID, originalURL string) *model.Audit {
 
 // NewNotifier создаёт Notifier: при auditFile != "" — запись в файл, при auditURL != "" — отправка на URL.
 func NewNotifier(auditFile, auditURL string) *Notifier {
-	n := &Notifier{receivers: nil}
-
+	n := &Notifier{}
 	if auditFile != "" {
-		n.receivers = append(n.receivers, NewFileReceiver(auditFile))
+		n.AddReceiver(NewFileReceiver(auditFile))
 	}
-
 	if auditURL != "" {
-		n.receivers = append(n.receivers, NewURLReceiver(auditURL))
+		n.AddReceiver(NewURLReceiver(auditURL))
 	}
-
 	return n
 }

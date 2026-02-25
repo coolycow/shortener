@@ -44,7 +44,15 @@ git fetch template && git checkout template/v2 .github
 - **Layered Architecture**
 
 ## Профилирование (pprof)
-Нагрузка:
+### Что бы сделано
+В репозитории `double_maps` вместо использования `var result []model.ShortURL` теперь используется единовременная аллокация `make([]model.ShortURL, 0, size)`.
+
+В сервисе `url_service`:
+* Вместо `s.cfg.BaseURL + "/" + resultKey` используется функция `buildFullURL`, которая позволяет избежать лишних аллокаций при конкатенации строк;
+* Вместо `var newURLs []model.ShortURL` как и в репозитории используется единовременная аллокация `newURLs := make([]model.ShortURL, 0, len(URLs))`;
+* Дополнительно переделан поиск уже существуюших ключей. Добавлена мапа urlIndexByOriginal, которую можно собрать один раз (затраты) и потом быстро находить то что нужно по ключу (выгода).
+
+### Нагрузка
 ```shell
 for ($i = 0; $i -lt 80000; $i++) {
   Invoke-WebRequest -Method Post -Uri "http://127.0.0.1:8080/" -Body "https://example.com/path/$i" -ContentType "text/plain" -UseBasicParsing | Out-Null
@@ -52,14 +60,14 @@ for ($i = 0; $i -lt 80000; $i++) {
 }
 ```
 
-Снятие профиля в момент нагрузки:
+### Снятие профиля в момент нагрузки
 ```shell
 curl "http://127.0.0.1:8080/debug/pprof/allocs?seconds=30" -o profiles/base_allocs.pprof // ДО ОПТИМИЗАЦИИ
 curl "http://127.0.0.1:8080/debug/pprof/allocs?seconds=30" -o profiles/base_allocs.pprof // ПОСЛЕ ОПТИМИЗАЦИИ
 
 ```
 
-Результат:
+### Результат
 ```log
 PS I:\practicum\shortener> go tool pprof -top -diff_base=.\profiles\base_allocs.pprof .\profiles\result_allocs.pprof 
 File: shortener.exe

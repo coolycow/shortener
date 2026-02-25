@@ -38,12 +38,15 @@ func BenchmarkPostHandler(b *testing.B) {
 	router.Use(middleware.OptionalAuthMiddleware(userService))
 	router.POST("/", PostHandler(urlService, auditNotifier))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		body := fmt.Sprintf("https://example.com/%d", i)
+	var n int
+	for b.Loop() {
+		b.StopTimer()
+		body := fmt.Sprintf("https://example.com/%d", n)
+		n++
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 		req.Header.Set("Content-Type", "text/plain")
 		w := httptest.NewRecorder()
+		b.StartTimer()
 		router.ServeHTTP(w, req)
 	}
 }
@@ -70,10 +73,11 @@ func BenchmarkGetHandler(b *testing.B) {
 	router.Use(middleware.OptionalAuthMiddleware(userService))
 	router.GET("/:key", GetHandler(urlService, auditNotifier))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
+		b.StopTimer()
 		req := httptest.NewRequest(http.MethodGet, "/Abc123", nil)
 		w := httptest.NewRecorder()
+		b.StartTimer()
 		router.ServeHTTP(w, req)
 	}
 }
