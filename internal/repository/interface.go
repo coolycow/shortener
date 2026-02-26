@@ -6,7 +6,7 @@ import (
 	"github.com/coolycow/shortener/internal/model"
 )
 
-// URLRepository определяет интерфейс для работы с хранилищем URL
+// URLRepository — интерфейс хранилища: сохранение/получение коротких URL, пользователи, пинг, миграции.
 type URLRepository interface {
 	AddURL(ctx context.Context, userID string, originalURL string, key string) (string, bool, error)
 	SaveURL(ctx context.Context, userID string, originalURL string, key string) (string, bool, error)

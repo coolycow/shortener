@@ -5,6 +5,7 @@ import (
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/logger"
+	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/router"
 	"go.uber.org/zap"
@@ -56,8 +57,11 @@ func main() {
 		}
 	}()
 
+	// Инициализируем нотифайер аудита (файл и/или URL из конфига; если оба пустые — приёмников не будет)
+	auditNotifier := audit.NewNotifier(cfg.AuditFile, cfg.AuditURL)
+
 	// Инициализируем роутер
-	r := router.NewRouter(cfg, repo)
+	r := router.NewRouter(cfg, repo, auditNotifier)
 
 	// Получаем адрес сервера из настроек и запускаем сервер
 	serverAddress := cfg.GetServerAddress()

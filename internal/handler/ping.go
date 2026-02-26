@@ -10,7 +10,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// PingHandler Проверяет возможность соединения с БД
+// PingHandler возвращает обработчик GET /ping — проверка доступности хранилища (БД или файл).
 func PingHandler(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if err := service.PingRepository(context.Background()); err != nil {

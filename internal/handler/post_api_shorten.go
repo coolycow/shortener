@@ -10,13 +10,14 @@ import (
 	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/middleware"
 	"github.com/coolycow/shortener/internal/model"
+	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// PostAPIShortenHandler обрабатывает POST-запросы к серверу
-func PostAPIShortenHandler(service service.URLService) gin.HandlerFunc {
+// PostAPIShortenHandler возвращает обработчик POST /api/shorten — сокращение URL (JSON: {"url": "..."}).
+func PostAPIShortenHandler(service service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json
 		contentType := c.GetHeader("Content-Type")
@@ -63,6 +64,7 @@ func PostAPIShortenHandler(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
+		// Получаем идентификатор пользователя из контекста
 		userID, err := middleware.GetUserIDFromGinContext(c)
 		if err != nil {
 			_ = c.Error(error.CustomError{
@@ -87,5 +89,9 @@ func PostAPIShortenHandler(service service.URLService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusCreated, resp)
+
+		// Отправляем событие аудита
+		event := audit.NewEvent(audit.ActionShorten, userID, validURL.String())
+		auditNotifier.Notify(event)
 	}
 }

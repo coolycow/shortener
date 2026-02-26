@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// ShortURL — модель короткой ссылки (используется в batch и при возврате списка пользователя).
 type ShortURL struct {
 	CorrelationID string     `json:"correlation_id"`
 	OriginalURL   string     `json:"original_url"`

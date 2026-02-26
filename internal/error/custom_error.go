@@ -1,6 +1,6 @@
 package error
 
-// CustomError represents a custom error type with a status code
+// CustomError — ошибка с HTTP-кодом для возврата клиенту.
 type CustomError struct {
 	Message    string
 	StatusCode int

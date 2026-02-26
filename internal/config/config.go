@@ -24,6 +24,8 @@ type Config struct {
 	DatabaseDSN                       string `env:"DATABASE_DSN"`
 	RunMigrations                     bool   `env:"RUN_MIGRATIONS"`
 	SecretKey                         string `env:"SECRET_KEY"`
+	AuditFile                         string `env:"AUDIT_FILE"`
+	AuditURL                          string `env:"AUDIT_URL"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -44,6 +46,8 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("DatabaseDSN: %s\n", c.DatabaseDSN)
 	fmt.Printf("RunMigrations: %t\n", c.RunMigrations)
 	fmt.Printf("SecretKey: %s\n", c.SecretKey)
+	fmt.Printf("AuditFile: %s\n", c.AuditFile)
+	fmt.Printf("AuditURL: %s\n", c.AuditURL)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -145,6 +149,14 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.RunMigrations, _ = strconv.ParseBool(runMigrations)
 	}
 
+	if auditFile, present := os.LookupEnv("AUDIT_FILE"); present {
+		config.AuditFile = auditFile
+	}
+
+	if auditURL, present := os.LookupEnv("AUDIT_URL"); present {
+		config.AuditURL = auditURL
+	}
+
 	return config, nil
 }
 
@@ -169,6 +181,9 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.StringVarP(&config.DatabaseDSN, "database-dsn", "d", getDefaultDatabaseDSN(), "database DSN")
 	flagSet.BoolVarP(&config.RunMigrations, "run-migrations", "r", false, "run migrations")
 	flagSet.StringVarP(&config.SecretKey, "secret-key", "k", getDefaultSecretKey(), "secret key")
+
+	flagSet.StringVarP(&config.AuditFile, "audit-file", "z", "", "audit file")
+	flagSet.StringVarP(&config.AuditURL, "audit-url", "u", "", "audit url")
 
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))

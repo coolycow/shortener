@@ -9,6 +9,7 @@ import (
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
+	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
@@ -158,6 +159,8 @@ func TestGetHandler(t *testing.T) {
 		},
 	}
 
+	auditNotifier := audit.NewNotifier("", "")
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			urlService, userService := setupTestService(true)
@@ -167,7 +170,7 @@ func TestGetHandler(t *testing.T) {
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.Use(middleware.OptionalAuthMiddleware(userService))
-			router.GET("/:key", GetHandler(urlService))
+			router.GET("/:key", GetHandler(urlService, auditNotifier))
 
 			request := httptest.NewRequest(test.method, "/"+test.key, nil)
 

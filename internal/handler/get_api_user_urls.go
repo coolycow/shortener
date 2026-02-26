@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetAPIUserURLs Обрабатываем GET-запросы к серверу.
+// GetAPIUserURLs возвращает обработчик GET /api/user/urls — список всех сокращённых URL текущего пользователя.
 func GetAPIUserURLs(service service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, err := middleware.GetUserIDFromGinContext(c)

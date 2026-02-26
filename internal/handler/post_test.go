@@ -12,6 +12,7 @@ import (
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/middleware"
+	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/gin-gonic/gin"
@@ -159,6 +160,8 @@ func TestPostHandler(t *testing.T) {
 
 	cfg, _ := config.InitConfig()
 
+	auditNotifier := audit.NewNotifier("", "")
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Временный файл для хранилища
@@ -181,7 +184,7 @@ func TestPostHandler(t *testing.T) {
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
 			router.Use(middleware.OptionalAuthMiddleware(userService))
-			router.POST("/", PostHandler(urlService))
+			router.POST("/", PostHandler(urlService, auditNotifier))
 
 			request := httptest.NewRequest(test.method, "/", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", test.contentType)

@@ -94,7 +94,7 @@ func (r *DoubleMapsRepository) SaveURL(_ context.Context, userID string, origina
 	// Если есть файловое хранилище, то дублируем в него
 	if r.jsonStorage != nil {
 		err := r.jsonStorage.Write(model.ShortURL{
-			CorrelationID: uuid.New().String(),
+			CorrelationID: "", // одиночное сохранение — correlation_id не нужен, экономим аллокацию uuid
 			Key:           key,
 			OriginalURL:   originalURL,
 		})
@@ -165,7 +165,9 @@ func (r *DoubleMapsRepository) GetManyKeys(ctx context.Context, userID string, U
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	var result []model.ShortURL
+	// Оптимизированный вариант
+	result := make([]model.ShortURL, 0, len(URLs))
+
 	for _, u := range URLs {
 		if shortURL, exists := r.originalToKey[u.OriginalURL]; exists {
 			result = append(result, model.ShortURL{
@@ -184,7 +186,9 @@ func (r *DoubleMapsRepository) GetManyShortURLs(ctx context.Context, userID stri
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	var result []model.ShortURL
+	// Оптимизированный вариант
+	result := make([]model.ShortURL, 0, len(r.originalToKey))
+
 	for u, k := range r.originalToKey {
 		result = append(result, model.ShortURL{
 			CorrelationID: "",
