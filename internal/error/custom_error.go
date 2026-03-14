@@ -1,3 +1,4 @@
+// Package error определяет пользовательские типы ошибок для HTTP-ответов.
 package error
 
 // CustomError — ошибка с HTTP-кодом для возврата клиенту.

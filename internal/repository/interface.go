@@ -1,3 +1,4 @@
+// Package repository определяет интерфейсы и реализации хранилища URL.
 package repository
 
 import (

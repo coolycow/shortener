@@ -22,10 +22,10 @@ import (
 func BenchmarkPostHandler(b *testing.B) {
 	cfg, _ := config.InitConfig()
 	tmpFile := "bench_" + uuid.New().String() + ".json"
-	defer os.Remove(tmpFile)
+	defer func() { _ = os.Remove(tmpFile) }()
 
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	auditNotifier := audit.NewNotifier("", "")
 	urlService := service.NewURLService(cfg, repo)
@@ -55,10 +55,10 @@ func BenchmarkPostHandler(b *testing.B) {
 func BenchmarkGetHandler(b *testing.B) {
 	cfg, _ := config.InitConfig()
 	tmpFile := "bench_" + uuid.New().String() + ".json"
-	defer os.Remove(tmpFile)
+	defer func() { _ = os.Remove(tmpFile) }()
 
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	_, _, _ = repo.SaveURL(context.Background(), "user1", "https://example.com/unique", "Abc123")
 

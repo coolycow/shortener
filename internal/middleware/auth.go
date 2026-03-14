@@ -1,3 +1,4 @@
+// Package middleware содержит HTTP-middleware: аутентификация, gzip, логирование ошибок.
 package middleware
 
 import (
@@ -77,11 +78,11 @@ func OptionalAuthMiddleware(userService service.UserService) gin.HandlerFunc {
 			userID, err := userService.GetUserIDFromCookie(cookie)
 
 			if err != nil {
-				user, cookieValue, err := createUserAndCookieValue(context.Background(), userService)
+				user, cookieValue, createErr := createUserAndCookieValue(context.Background(), userService)
 
-				if err != nil {
+				if createErr != nil {
 					_ = c.Error(httpError.CustomError{
-						Message:    err.Error(),
+						Message:    createErr.Error(),
 						StatusCode: http.StatusInternalServerError,
 					})
 					c.Abort()

@@ -146,13 +146,13 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID string, URL
 		return err
 	}
 
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	// В рамках транзакции проводим сохранение пар URL и ключа
 	// Если в момент сохранения произойдет дублирование URL, то мы это учтём.
 	for i, u := range URLs {
 		if (u.Key == "") || (u.OriginalURL == "") {
-			tx.Rollback()
+			_ = tx.Rollback()
 			log.Println(u.Key)
 			log.Println(u.OriginalURL)
 			return errors.New("key or originalURL is empty")
@@ -164,7 +164,7 @@ func (r *PostgresRepository) SaveManyURL(ctx context.Context, userID string, URL
 
 		if err != nil {
 			logger.Log.Warn("Error saving url", zap.Error(err))
-			tx.Rollback()
+			_ = tx.Rollback()
 			return err
 		}
 
@@ -249,15 +249,15 @@ func (r *PostgresRepository) GetManyKeys(ctx context.Context, userID string, URL
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []model.ShortURL
 
 	// Проходим по строкам и собираем ShortURL
 	for rows.Next() {
 		var url, key string
-		if err := rows.Scan(&url, &key); err != nil {
-			return nil, err
+		if scanErr := rows.Scan(&url, &key); scanErr != nil {
+			return nil, scanErr
 		}
 
 		// Ищем соответствующий CorrelationID в исходном массиве
@@ -294,13 +294,13 @@ func (r *PostgresRepository) GetManyShortURLs(ctx context.Context, userID string
 		return nil, err
 	}
 
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var id string
 		var url string
 		var key string
-		if err := rows.Scan(&id, &url, &key); err != nil {
-			return nil, err
+		if scanErr := rows.Scan(&id, &url, &key); scanErr != nil {
+			return nil, scanErr
 		}
 
 		result = append(result, model.ShortURL{

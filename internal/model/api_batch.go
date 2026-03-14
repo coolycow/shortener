@@ -1,3 +1,4 @@
+// Package model определяет модели данных и API-структуры сервиса.
 package model
 
 // APIShortenBatchResponse — элемент ответа POST /api/shorten/batch.

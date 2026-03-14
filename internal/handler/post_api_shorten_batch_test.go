@@ -166,10 +166,10 @@ func TestPostAPIShortenBatchHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Временный файл для хранилища
 			tmpFile := "test_" + uuid.New().String() + ".json"
-			defer os.Remove(tmpFile)
+			defer func() { _ = os.Remove(tmpFile) }()
 
 			repo := repository.NewDoubleMapsRepository(tmpFile)
-			defer repo.Close()
+			defer func() { _ = repo.Close() }()
 
 			urlService := service.NewURLService(cfg, repo)
 			userService := service.NewUserService(cfg, repo)
@@ -215,7 +215,7 @@ func TestPostAPIShortenBatchHandler(t *testing.T) {
 			resultBody, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 
-			result.Body.Close()
+			_ = result.Body.Close()
 
 			if result.StatusCode == http.StatusCreated {
 				var resp []model.APIShortenBatchResponse

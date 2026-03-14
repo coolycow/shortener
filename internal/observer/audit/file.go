@@ -32,7 +32,7 @@ func (f *FileReceiver) Send(event *model.Audit) error {
 	if err != nil {
 		return fmt.Errorf("open audit file %s: %w", f.path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	f.mu.Lock()
 	_, err = file.Write(data)

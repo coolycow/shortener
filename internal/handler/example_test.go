@@ -27,7 +27,7 @@ func ExamplePostHandler() {
 	tmpFile := "example_post.json"
 	_ = os.Remove(tmpFile)
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	srv := service.NewURLService(cfg, repo)
 	userSvc := service.NewUserService(cfg, repo)
 	notifier := audit.NewNotifier("", "")
@@ -42,8 +42,8 @@ func ExamplePostHandler() {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	resp := w.Result()
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 	fmt.Println(resp.StatusCode)
 	// Output: 201
 }
@@ -54,7 +54,7 @@ func ExamplePostAPIShortenHandler() {
 	tmpFile := "example_api_shorten.json"
 	_ = os.Remove(tmpFile)
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	srv := service.NewURLService(cfg, repo)
 	userSvc := service.NewUserService(cfg, repo)
 	notifier := audit.NewNotifier("", "")
@@ -71,7 +71,7 @@ func ExamplePostAPIShortenHandler() {
 	r.ServeHTTP(w, req)
 	resp := w.Result()
 	respBody, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var result model.APIShortenResponse
 	_ = json.Unmarshal(respBody, &result)
 	fmt.Println(resp.StatusCode, result.Result != "")
@@ -84,7 +84,7 @@ func ExampleGetHandler() {
 	tmpFile := "example_get.json"
 	_ = os.Remove(tmpFile)
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	_, _, _ = repo.SaveURL(context.Background(), "user1", "https://yandex.ru", "abc123")
 	srv := service.NewURLService(cfg, repo)
 	userSvc := service.NewUserService(cfg, repo)
@@ -99,7 +99,7 @@ func ExampleGetHandler() {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	resp := w.Result()
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	location := resp.Header.Get("Location")
 	fmt.Println(resp.StatusCode, location)
 	// Output: 307 https://yandex.ru
@@ -111,7 +111,7 @@ func ExamplePingHandler() {
 	tmpFile := "example_ping.json"
 	_ = os.Remove(tmpFile)
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	srv := service.NewURLService(cfg, repo)
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -123,7 +123,7 @@ func ExamplePingHandler() {
 	r.ServeHTTP(w, req)
 	resp := w.Result()
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	fmt.Println(resp.StatusCode, string(body))
 	// Output: 200 Database connection succeeded
 }
@@ -134,7 +134,7 @@ func ExamplePostAPIShortenBatchHandler() {
 	tmpFile := "example_batch.json"
 	_ = os.Remove(tmpFile)
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	srv := service.NewURLService(cfg, repo)
 	userSvc := service.NewUserService(cfg, repo)
 	gin.SetMode(gin.TestMode)
@@ -154,7 +154,7 @@ func ExamplePostAPIShortenBatchHandler() {
 	r.ServeHTTP(w, req)
 	resp := w.Result()
 	respBody, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var results []model.APIShortenBatchResponse
 	_ = json.Unmarshal(respBody, &results)
 	fmt.Println(resp.StatusCode, len(results))

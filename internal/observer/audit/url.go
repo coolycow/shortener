@@ -40,7 +40,7 @@ func (u *URLReceiver) Send(event *model.Audit) error {
 	if err != nil {
 		return fmt.Errorf("send audit event to %s: %w", u.url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("audit endpoint returned status %d", resp.StatusCode)

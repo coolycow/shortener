@@ -1,3 +1,4 @@
+// Package audit реализует отправку событий аудита в файл и по HTTP.
 package audit
 
 import (

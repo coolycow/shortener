@@ -170,10 +170,10 @@ func TestPostAPIShortenHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Временный файл для хранилища
 			tmpFile := "test_" + uuid.New().String() + ".json"
-			defer os.Remove(tmpFile)
+			defer func() { _ = os.Remove(tmpFile) }()
 
 			repo := repository.NewDoubleMapsRepository(tmpFile)
-			defer repo.Close()
+			defer func() { _ = repo.Close() }()
 
 			urlService := service.NewURLService(cfg, repo)
 			userService := service.NewUserService(cfg, repo)
@@ -212,7 +212,7 @@ func TestPostAPIShortenHandler(t *testing.T) {
 			// Проверяем, что код ответа и тип контента соответствуют ожиданиям
 			assert.Equal(t, test.want.code, result.StatusCode)
 
-			result.Body.Close()
+			_ = result.Body.Close()
 
 			resultBody, err := io.ReadAll(result.Body)
 

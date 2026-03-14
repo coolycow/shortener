@@ -22,7 +22,7 @@ func BenchmarkURLService_CreateShortURL(b *testing.B) {
 	ctx := context.Background()
 	cfg := benchConfig()
 	repo := repository.NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	svc := NewURLService(cfg, repo)
 	userID := "bench-user"
 
@@ -36,7 +36,7 @@ func BenchmarkURLService_GetShortURL(b *testing.B) {
 	ctx := context.Background()
 	cfg := benchConfig()
 	repo := repository.NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	svc := NewURLService(cfg, repo)
 	userID := "bench-user"
 	shortURL, _ := svc.CreateShortURL(ctx, userID, "https://example.com/unique")
@@ -52,7 +52,7 @@ func BenchmarkURLService_GetManyShortURLs(b *testing.B) {
 	ctx := context.Background()
 	cfg := benchConfig()
 	repo := repository.NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	svc := NewURLService(cfg, repo)
 	userID := "bench-user"
 	for i := 0; i < 100; i++ {

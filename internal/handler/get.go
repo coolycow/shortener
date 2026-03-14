@@ -1,3 +1,4 @@
+// Package handler содержит HTTP-обработчики сервиса коротких ссылок.
 package handler
 
 import (
