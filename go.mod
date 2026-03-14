@@ -14,7 +14,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/timakin/bodyclose v0.0.0-20260129054331-73d1f95b84b4
 	go.uber.org/zap v1.27.0
-	golang.org/x/tools v0.41.0
+	golang.org/x/tools v0.42.0
 	honnef.co/go/tools v0.6.1
 )
 
