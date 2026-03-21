@@ -1,3 +1,4 @@
+// Package service содержит бизнес-логику сервиса коротких ссылок и пользователей.
 package service
 
 import (

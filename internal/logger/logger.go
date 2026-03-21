@@ -1,3 +1,4 @@
+// Package logger предоставляет глобальный логер приложения.
 package logger
 
 import (

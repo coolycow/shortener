@@ -16,7 +16,7 @@ func uniqueKey(i int) string {
 func BenchmarkDoubleMapsRepository_SaveURL(b *testing.B) {
 	ctx := context.Background()
 	repo := NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	userID := "bench-user"
 
 	b.ResetTimer()
@@ -29,7 +29,7 @@ func BenchmarkDoubleMapsRepository_SaveURL(b *testing.B) {
 func BenchmarkDoubleMapsRepository_GetShortURL(b *testing.B) {
 	ctx := context.Background()
 	repo := NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	userID := "bench-user"
 	key := uniqueKey(0)
 	_, _, _ = repo.SaveURL(ctx, userID, "https://example.com/unique", key)
@@ -43,7 +43,7 @@ func BenchmarkDoubleMapsRepository_GetShortURL(b *testing.B) {
 func BenchmarkDoubleMapsRepository_AddURL(b *testing.B) {
 	ctx := context.Background()
 	repo := NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	userID := "bench-user"
 
 	b.ResetTimer()
@@ -56,7 +56,7 @@ func BenchmarkDoubleMapsRepository_AddURL(b *testing.B) {
 func BenchmarkDoubleMapsRepository_GetManyKeys(b *testing.B) {
 	ctx := context.Background()
 	repo := NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	userID := "bench-user"
 	urls := make([]model.ShortURL, 10)
 	for i := range urls {
@@ -74,7 +74,7 @@ func BenchmarkDoubleMapsRepository_GetManyKeys(b *testing.B) {
 func BenchmarkDoubleMapsRepository_GetManyShortURLs(b *testing.B) {
 	ctx := context.Background()
 	repo := NewDoubleMapsRepository("")
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 	userID := "bench-user"
 	for i := 0; i < 50; i++ {
 		key := uniqueKey(i)

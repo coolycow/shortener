@@ -23,10 +23,10 @@ func setupTestService(addDefaultURLs bool) (service.URLService, service.UserServ
 
 	// Временный файл для хранилища
 	tmpFile := "test_" + uuid.New().String() + ".json"
-	defer os.Remove(tmpFile)
+	defer func() { _ = os.Remove(tmpFile) }()
 
 	repo := repository.NewDoubleMapsRepository(tmpFile)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	if addDefaultURLs {
 		defaultURLs := map[string]string{

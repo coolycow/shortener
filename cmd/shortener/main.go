@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/logger"
@@ -11,7 +13,25 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
+func orNA(s string) string {
+	if s == "" {
+		return "N/A"
+	}
+	return s
+}
+
 func main() {
+	// Вывод информации о сборке при старте
+	fmt.Fprintf(os.Stdout, "Build version: %s\n", orNA(buildVersion))
+	fmt.Fprintf(os.Stdout, "Build date: %s\n", orNA(buildDate))
+	fmt.Fprintf(os.Stdout, "Build commit: %s\n", orNA(buildCommit))
+
 	// Инициализируем настройки (приоритет: окружение, флаги, дефолт)
 	cfg, err := config.InitConfig()
 
