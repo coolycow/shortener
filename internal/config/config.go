@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,22 +15,45 @@ import (
 
 // Config Структура для хранения конфигурации, задаются соответствия ENV
 type Config struct {
-	Host                              string `env:"HOST"`
-	Port                              int    `env:"PORT"`
-	BaseURL                           string `env:"BASE_URL"`
-	RandomStringLength                int    `env:"RANDOM_STRING_LENGTH"`
-	RandomStringMaxLength             int    `env:"RANDOM_STRING_MAX_LENGTH"`
-	RandomStringMaxGenerationAttempts int    `env:"RANDOM_STRING_MAX_GENERATION_ATTEMPTS"`
-	LogLevel                          string `env:"LOG_LEVEL"`
-	FileStoragePath                   string `env:"FILE_STORAGE_PATH"`
-	DatabaseDSN                       string `env:"DATABASE_DSN"`
-	RunMigrations                     bool   `env:"RUN_MIGRATIONS"`
-	SecretKey                         string `env:"SECRET_KEY"`
-	AuditFile                         string `env:"AUDIT_FILE"`
-	AuditURL                          string `env:"AUDIT_URL"`
-	EnableHTTPS                       bool   `env:"ENABLE_HTTPS"`
-	TLSCertFile                       string `env:"TLS_CERT_FILE"`
-	TLSKeyFile                        string `env:"TLS_KEY_FILE"`
+	Host                              string `env:"HOST" json:"host,omitempty"`
+	Port                              int    `env:"PORT" json:"port,omitempty"`
+	BaseURL                           string `env:"BASE_URL" json:"base_url,omitempty"`
+	RandomStringLength                int    `env:"RANDOM_STRING_LENGTH" json:"random_string_length,omitempty"`
+	RandomStringMaxLength             int    `env:"RANDOM_STRING_MAX_LENGTH" json:"random_string_max_length,omitempty"`
+	RandomStringMaxGenerationAttempts int    `env:"RANDOM_STRING_MAX_GENERATION_ATTEMPTS" json:"random_string_max_generation_attempts,omitempty"`
+	LogLevel                          string `env:"LOG_LEVEL" json:"log_level,omitempty"`
+	FileStoragePath                   string `env:"FILE_STORAGE_PATH" json:"file_storage_path,omitempty"`
+	DatabaseDSN                       string `env:"DATABASE_DSN" json:"database_dsn,omitempty"`
+	RunMigrations                     bool   `env:"RUN_MIGRATIONS" json:"run_migrations,omitempty"`
+	SecretKey                         string `env:"SECRET_KEY" json:"secret_key,omitempty"`
+	AuditFile                         string `env:"AUDIT_FILE" json:"audit_file,omitempty"`
+	AuditURL                          string `env:"AUDIT_URL" json:"audit_url,omitempty"`
+	EnableHTTPS                       bool   `env:"ENABLE_HTTPS" json:"enable_https,omitempty"`
+	TLSCertFile                       string `env:"TLS_CERT_FILE" json:"tls_cert_file,omitempty"`
+	TLSKeyFile                        string `env:"TLS_KEY_FILE" json:"tls_key_file,omitempty"`
+	Config                            string `env:"CONFIG" json:"config,omitempty"`
+}
+
+// fileConfig — JSON-файл; указатели задают поля, явно присутствующие в файле.
+// Ключ "config" в файле не разбираем (путь к файлу только из -c / CONFIG).
+type fileConfig struct {
+	ServerAddress                     *string `json:"server_address"`
+	Host                              *string `json:"host"`
+	Port                              *int    `json:"port"`
+	BaseURL                           *string `json:"base_url"`
+	RandomStringLength                *int    `json:"random_string_length"`
+	RandomStringMaxLength             *int    `json:"random_string_max_length"`
+	RandomStringMaxGenerationAttempts *int    `json:"random_string_max_generation_attempts"`
+	LogLevel                          *string `json:"log_level"`
+	FileStoragePath                   *string `json:"file_storage_path"`
+	DatabaseDSN                       *string `json:"database_dsn"`
+	RunMigrations                     *bool   `json:"run_migrations"`
+	SecretKey                         *string `json:"secret_key"`
+	AuditFile                         *string `json:"audit_file"`
+	AuditURL                          *string `json:"audit_url"`
+	EnableHTTPS                       *bool   `json:"enable_https"`
+	TLSCertFile                       *string `json:"tls_cert_file"`
+	TLSKeyFile                        *string `json:"tls_key_file"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -55,48 +79,81 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("EnableHTTPS: %t\n", c.EnableHTTPS)
 	fmt.Printf("TLSCertFile: %s\n", c.TLSCertFile)
 	fmt.Printf("TLSKeyFile: %s\n", c.TLSKeyFile)
+	fmt.Printf("Config: %s\n", c.Config)
 }
 
-// InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
+// InitConfig возвращает настройки и ошибку если парсинг аргументов не удался.
+// Порядок приоритета: значения по умолчанию → JSON-файл → переменные окружения → флаги.
 func InitConfig() (*Config, error) {
-	// Инициализируем настройки из флагов, также будут заданы значения по умолчанию
-	config, err := InitConfigWithArgs(os.Args[1:])
+	args := os.Args[1:]
 
+	// Получаем настройки из флагов
+	flagCfg, fs, err := parseFlags(args)
 	if err != nil {
 		return nil, err
 	}
 
-	// Инициализируем настройки из переменных окружения если таковые указаны
-	config, err = initConfigWithEnv(config)
+	// Получаем настройки из переменных окружения
+	configPath := strings.TrimSpace(flagCfg.Config)
+	if !fs.Changed("config") {
+		if v, ok := os.LookupEnv("CONFIG"); ok {
+			configPath = strings.TrimSpace(v)
+		}
+	}
 
-	if err != nil {
+	// Получаем настройки из файла конфигурации
+	cfg := defaultConfig()
+	_, configEnvSet := os.LookupEnv("CONFIG")
+	explicitConfigPath := fs.Changed("config") || configEnvSet
+
+	if configPath != "" {
+		if err := mergeConfigFromFile(&cfg, configPath); err != nil {
+			if errors.Is(err, os.ErrNotExist) && !explicitConfigPath {
+				cfg = defaultConfig()
+			} else {
+				return nil, err
+			}
+		}
+	}
+
+	cfg.Config = configPath
+
+	// Применяем настройки из переменных окружения
+	if _, err := applyEnvToConfig(&cfg, fs.Changed("config")); err != nil {
 		return nil, err
 	}
 
-	// Проверяем параметры генерации случайных строк.
-	// Параметры должны иметь корректные значения, чтобы избежать ошибок при генерации и сохранении.
+	applyExplicitFlags(&cfg, flagCfg, fs)
+
+	// Проверяем настройки на корректность
 	var errs []error
-	if config.RandomStringLength <= 0 || config.RandomStringLength > 255 {
+	if cfg.RandomStringLength <= 0 || cfg.RandomStringLength > 255 {
 		errs = append(errs, errors.New("random string length must be between 1 and 255"))
 	}
 
-	if config.RandomStringMaxLength <= 0 || config.RandomStringMaxLength > 255 {
+	if cfg.RandomStringMaxLength <= 0 || cfg.RandomStringMaxLength > 255 {
 		errs = append(errs, errors.New("random string max length must be between 1 and 255"))
 	}
 
-	if config.RandomStringMaxGenerationAttempts <= 0 || config.RandomStringMaxGenerationAttempts > 1000 {
+	if cfg.RandomStringMaxGenerationAttempts <= 0 || cfg.RandomStringMaxGenerationAttempts > 1000 {
 		errs = append(errs, errors.New("random string max generation attempts must be between 1 and 1000"))
 	}
 
-	if config.RandomStringMaxLength < config.RandomStringLength {
+	if cfg.RandomStringMaxLength < cfg.RandomStringLength {
 		errs = append(errs, errors.New("random string max length must be greater than or equal to random string length"))
 	}
 
-	return config, errors.Join(errs...)
+	return &cfg, errors.Join(errs...)
 }
 
-// initConfigWithEnv получение настроек из переменных окружения
+// initConfigWithEnv получение настроек из переменных окружения.
 func initConfigWithEnv(config *Config) (*Config, error) {
+	return applyEnvToConfig(config, false)
+}
+
+// applyEnvToConfig применяет переменные окружения. Если skipConfigFromEnv, CONFIG не трогаем
+// (путь к файлу задан явно флагом -c).
+func applyEnvToConfig(config *Config, skipConfigFromEnv bool) (*Config, error) {
 	if host, present := os.LookupEnv("HOST"); present {
 		config.Host = host
 	}
@@ -176,11 +233,22 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.TLSKeyFile = keyFile
 	}
 
+	if !skipConfigFromEnv {
+		if configFile, present := os.LookupEnv("CONFIG"); present {
+			config.Config = strings.TrimSpace(configFile)
+		}
+	}
+
 	return config, nil
 }
 
-// InitConfigWithArgs инициализация с переданными аргументами
+// InitConfigWithArgs инициализация с переданными аргументами (только флаги; как раньше для тестов).
 func InitConfigWithArgs(args []string) (*Config, error) {
+	cfg, _, err := parseFlags(args)
+	return cfg, err
+}
+
+func parseFlags(args []string) (*Config, *flag.FlagSet, error) {
 	var config Config
 
 	flagSet := flag.NewFlagSet("main", flag.ContinueOnError)
@@ -208,20 +276,176 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.StringVar(&config.TLSCertFile, "tls-cert-file", getDefaultTLSCertFile(), "TLS certificate file (PEM), for HTTPS")
 	flagSet.StringVar(&config.TLSKeyFile, "tls-key-file", getDefaultTLSKeyFile(), "TLS private key file (PEM), for HTTPS")
 
-	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))
 
-	// Определение параметров уникальной строки в виде одной строки
 	flagSet.FuncP("string", "x", "unique random string options", parseRandomString(&config))
 
-	err := flagSet.Parse(args)
+	flagSet.StringVarP(&config.Config, "config", "c", getDefaultConfigFile(), "config file")
 
+	err := flagSet.Parse(args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Возвращаем адрес переменной config
-	return &config, nil
+	return &config, flagSet, nil
+}
+
+func defaultConfig() Config {
+	return Config{
+		Host:                              "127.0.0.1",
+		Port:                              8080,
+		BaseURL:                           "http://127.0.0.1:8080",
+		RandomStringLength:                6,
+		RandomStringMaxLength:             255,
+		RandomStringMaxGenerationAttempts: 1000,
+		LogLevel:                          "info",
+		FileStoragePath:                   getDefaultStoragePath(),
+		DatabaseDSN:                       getDefaultDatabaseDSN(),
+		RunMigrations:                     false,
+		SecretKey:                         getDefaultSecretKey(),
+		AuditFile:                         "",
+		AuditURL:                          "",
+		EnableHTTPS:                       false,
+		TLSCertFile:                       getDefaultTLSCertFile(),
+		TLSKeyFile:                        getDefaultTLSKeyFile(),
+		Config:                            "",
+	}
+}
+
+func mergeConfigFromFile(cfg *Config, path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read config file %s: %w", path, err)
+	}
+
+	var fc fileConfig
+	if err := json.Unmarshal(data, &fc); err != nil {
+		return fmt.Errorf("invalid config file %s: %w", path, err)
+	}
+
+	if fc.ServerAddress != nil && strings.TrimSpace(*fc.ServerAddress) != "" {
+		h, p, err := splitServerAddress(strings.TrimSpace(*fc.ServerAddress))
+		if err != nil {
+			return fmt.Errorf("invalid server_address in config file: %w", err)
+		}
+		cfg.Host = h
+		cfg.Port = p
+	} else {
+		if fc.Host != nil {
+			cfg.Host = *fc.Host
+		}
+		if fc.Port != nil {
+			cfg.Port = *fc.Port
+		}
+	}
+
+	if fc.BaseURL != nil {
+		cfg.BaseURL = *fc.BaseURL
+	}
+	if fc.RandomStringLength != nil {
+		cfg.RandomStringLength = *fc.RandomStringLength
+	}
+	if fc.RandomStringMaxLength != nil {
+		cfg.RandomStringMaxLength = *fc.RandomStringMaxLength
+	}
+	if fc.RandomStringMaxGenerationAttempts != nil {
+		cfg.RandomStringMaxGenerationAttempts = *fc.RandomStringMaxGenerationAttempts
+	}
+	if fc.LogLevel != nil {
+		cfg.LogLevel = *fc.LogLevel
+	}
+	if fc.FileStoragePath != nil {
+		cfg.FileStoragePath = *fc.FileStoragePath
+	}
+	if fc.DatabaseDSN != nil {
+		cfg.DatabaseDSN = *fc.DatabaseDSN
+	}
+	if fc.RunMigrations != nil {
+		cfg.RunMigrations = *fc.RunMigrations
+	}
+	if fc.SecretKey != nil {
+		cfg.SecretKey = *fc.SecretKey
+	}
+	if fc.AuditFile != nil {
+		cfg.AuditFile = *fc.AuditFile
+	}
+	if fc.AuditURL != nil {
+		cfg.AuditURL = *fc.AuditURL
+	}
+	if fc.EnableHTTPS != nil {
+		cfg.EnableHTTPS = *fc.EnableHTTPS
+	}
+	if fc.TLSCertFile != nil {
+		cfg.TLSCertFile = *fc.TLSCertFile
+	}
+	if fc.TLSKeyFile != nil {
+		cfg.TLSKeyFile = *fc.TLSKeyFile
+	}
+
+	return nil
+}
+
+func applyExplicitFlags(dst *Config, src *Config, fs *flag.FlagSet) {
+	if fs.Changed("host") {
+		dst.Host = src.Host
+	}
+	if fs.Changed("port") {
+		dst.Port = src.Port
+	}
+	if fs.Changed("base") {
+		dst.BaseURL = src.BaseURL
+	}
+	if fs.Changed("random-length") {
+		dst.RandomStringLength = src.RandomStringLength
+	}
+	if fs.Changed("random-max-length") {
+		dst.RandomStringMaxLength = src.RandomStringMaxLength
+	}
+	if fs.Changed("random-attempts") {
+		dst.RandomStringMaxGenerationAttempts = src.RandomStringMaxGenerationAttempts
+	}
+	if fs.Changed("log-level") {
+		dst.LogLevel = src.LogLevel
+	}
+	if fs.Changed("file-storage-path") {
+		dst.FileStoragePath = src.FileStoragePath
+	}
+	if fs.Changed("database-dsn") {
+		dst.DatabaseDSN = src.DatabaseDSN
+	}
+	if fs.Changed("run-migrations") {
+		dst.RunMigrations = src.RunMigrations
+	}
+	if fs.Changed("secret-key") {
+		dst.SecretKey = src.SecretKey
+	}
+	if fs.Changed("audit-file") {
+		dst.AuditFile = src.AuditFile
+	}
+	if fs.Changed("audit-url") {
+		dst.AuditURL = src.AuditURL
+	}
+	if fs.Changed("enable-https") {
+		dst.EnableHTTPS = src.EnableHTTPS
+	}
+	if fs.Changed("tls-cert-file") {
+		dst.TLSCertFile = src.TLSCertFile
+	}
+	if fs.Changed("tls-key-file") {
+		dst.TLSKeyFile = src.TLSKeyFile
+	}
+	if fs.Changed("address") {
+		dst.Host = src.Host
+		dst.Port = src.Port
+	}
+	if fs.Changed("string") {
+		dst.RandomStringLength = src.RandomStringLength
+		dst.RandomStringMaxLength = src.RandomStringMaxLength
+		dst.RandomStringMaxGenerationAttempts = src.RandomStringMaxGenerationAttempts
+	}
+	if fs.Changed("config") {
+		dst.Config = strings.TrimSpace(src.Config)
+	}
 }
 
 // parseIntFromEnv парсит int-значение из переменной окружения и устанавливает его в поле конфигурации
@@ -258,7 +482,6 @@ func parseRandomString(c *Config) func(value string) error {
 	return func(value string) error {
 		values := strings.Split(value, ",")
 
-		// Минимум должен быть передан хотя бы один параметр
 		if len(values) < 1 || len(values) > 3 {
 			return fmt.Errorf("incorrect string options %s", value)
 		}
@@ -269,7 +492,6 @@ func parseRandomString(c *Config) func(value string) error {
 		}
 		c.RandomStringLength = length
 
-		// Если передано 2 параметра или более, то можем задать максимальную длину
 		if len(values) > 1 {
 			maxLength, err := strconv.Atoi(values[1])
 			if err != nil {
@@ -278,7 +500,6 @@ func parseRandomString(c *Config) func(value string) error {
 			c.RandomStringMaxLength = maxLength
 		}
 
-		// Если передано 3 параметра, то можем задать максимальное количество попыток генерации
 		if len(values) > 2 {
 			attempts, err := strconv.Atoi(values[2])
 			if err != nil {
@@ -338,4 +559,9 @@ func getDefaultTLSCertFile() string {
 // getDefaultTLSKeyFile файл ключа по умолчанию
 func getDefaultTLSKeyFile() string {
 	return "server.key"
+}
+
+// getDefaultConfigFile файл конфигурации по умолчанию
+func getDefaultConfigFile() string {
+	return "config.json"
 }
