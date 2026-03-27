@@ -27,6 +27,9 @@ type Config struct {
 	SecretKey                         string `env:"SECRET_KEY"`
 	AuditFile                         string `env:"AUDIT_FILE"`
 	AuditURL                          string `env:"AUDIT_URL"`
+	EnableHTTPS                       bool   `env:"ENABLE_HTTPS"`
+	TLSCertFile                       string `env:"TLS_CERT_FILE"`
+	TLSKeyFile                        string `env:"TLS_KEY_FILE"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -49,6 +52,9 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("SecretKey: %s\n", c.SecretKey)
 	fmt.Printf("AuditFile: %s\n", c.AuditFile)
 	fmt.Printf("AuditURL: %s\n", c.AuditURL)
+	fmt.Printf("EnableHTTPS: %t\n", c.EnableHTTPS)
+	fmt.Printf("TLSCertFile: %s\n", c.TLSCertFile)
+	fmt.Printf("TLSKeyFile: %s\n", c.TLSKeyFile)
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался
@@ -158,6 +164,18 @@ func initConfigWithEnv(config *Config) (*Config, error) {
 		config.AuditURL = auditURL
 	}
 
+	if enableHTTPS, present := os.LookupEnv("ENABLE_HTTPS"); present {
+		config.EnableHTTPS, _ = strconv.ParseBool(enableHTTPS)
+	}
+
+	if certFile, present := os.LookupEnv("TLS_CERT_FILE"); present {
+		config.TLSCertFile = certFile
+	}
+
+	if keyFile, present := os.LookupEnv("TLS_KEY_FILE"); present {
+		config.TLSKeyFile = keyFile
+	}
+
 	return config, nil
 }
 
@@ -186,11 +204,15 @@ func InitConfigWithArgs(args []string) (*Config, error) {
 	flagSet.StringVarP(&config.AuditFile, "audit-file", "z", "", "audit file")
 	flagSet.StringVarP(&config.AuditURL, "audit-url", "u", "", "audit url")
 
+	flagSet.BoolVarP(&config.EnableHTTPS, "enable-https", "s", false, "enable HTTPS")
+	flagSet.StringVar(&config.TLSCertFile, "tls-cert-file", getDefaultTLSCertFile(), "TLS certificate file (PEM), for HTTPS")
+	flagSet.StringVar(&config.TLSKeyFile, "tls-key-file", getDefaultTLSKeyFile(), "TLS private key file (PEM), for HTTPS")
+
 	// Определение адреса сервера в виде строки 127.0.0.1:8080
 	flagSet.FuncP("address", "a", "server address", parseAddress(&config))
 
 	// Определение параметров уникальной строки в виде одной строки
-	flagSet.FuncP("string", "s", "unique random string options", parseRandomString(&config))
+	flagSet.FuncP("string", "x", "unique random string options", parseRandomString(&config))
 
 	err := flagSet.Parse(args)
 
@@ -306,4 +328,14 @@ func getDefaultDatabaseDSN() string {
 // getDefaultSecretKey секретный ключ по умолчанию
 func getDefaultSecretKey() string {
 	return "shortener_secret_key"
+}
+
+// getDefaultTLSCertFile файл сертификата по умолчанию
+func getDefaultTLSCertFile() string {
+	return "server.crt"
+}
+
+// getDefaultTLSKeyFile файл ключа по умолчанию
+func getDefaultTLSKeyFile() string {
+	return "server.key"
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/coolycow/shortener/internal/config"
@@ -87,7 +88,18 @@ func main() {
 	serverAddress := cfg.GetServerAddress()
 	logger.Log.Info("Running server ", zap.String("address", serverAddress))
 
-	err = r.Run(serverAddress)
+	// Если включено HTTPS, то запускаем сервер с HTTPS
+	if cfg.EnableHTTPS {
+		srv := &http.Server{
+			Addr:    serverAddress,
+			Handler: r,
+		}
+
+		err = srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+	} else {
+		// Если не включено HTTPS, то запускаем сервер с HTTP
+		err = r.Run(serverAddress)
+	}
 
 	// Если сервер не стартовал - фатальная ошибка
 	if err != nil {
