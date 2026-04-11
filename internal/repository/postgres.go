@@ -345,6 +345,19 @@ func (r *PostgresRepository) GetSize(ctx context.Context) int {
 	return count
 }
 
+// GetUsersCount возвращает число записей в таблице users.
+func (r *PostgresRepository) GetUsersCount(ctx context.Context) int {
+	row := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users")
+
+	var count int64
+	if err := row.Scan(&count); err != nil {
+		logger.Log.Error("Error scanning users count", zap.Error(err))
+		return 0
+	}
+
+	return int(count)
+}
+
 // Close закрывает хранилище
 func (r *PostgresRepository) Close() error {
 	if r.db != nil {

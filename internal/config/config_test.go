@@ -644,3 +644,27 @@ func TestConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestTrustedSubnetFromFlags проверяет, что trusted subnet устанавливается из флагов
+func TestTrustedSubnetFromFlags(t *testing.T) {
+	cfg, err := InitConfigWithArgs([]string{"-t", "192.168.0.0/16"})
+	assert.NoError(t, err)
+	assert.Equal(t, "192.168.0.0/16", cfg.TrustedSubnet)
+}
+
+// TestTrustedSubnetFromEnv проверяет, что trusted subnet устанавливается из переменных окружения
+func TestTrustedSubnetFromEnv(t *testing.T) {
+	t.Setenv("TRUSTED_SUBNET", "10.0.0.0/8")
+	cfg, err := InitConfigWithArgs(nil)
+	assert.NoError(t, err)
+	cfg, err = initConfigWithEnv(cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, "10.0.0.0/8", cfg.TrustedSubnet)
+}
+
+// TestInitConfigInvalidTrustedSubnet проверяет, что ошибка возвращается при некорректном trusted subnet
+func TestInitConfigInvalidTrustedSubnet(t *testing.T) {
+	t.Setenv("TRUSTED_SUBNET", "not-a-cidr")
+	_, err := InitConfig()
+	assert.Error(t, err)
+}

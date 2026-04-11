@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -31,6 +32,7 @@ type Config struct {
 	EnableHTTPS                       bool   `env:"ENABLE_HTTPS" json:"enable_https,omitempty"`
 	TLSCertFile                       string `env:"TLS_CERT_FILE" json:"tls_cert_file,omitempty"`
 	TLSKeyFile                        string `env:"TLS_KEY_FILE" json:"tls_key_file,omitempty"`
+	TrustedSubnet                     string `env:"TRUSTED_SUBNET" json:"trusted_subnet,omitempty"`
 	Config                            string `env:"CONFIG" json:"config,omitempty"`
 }
 
@@ -54,6 +56,7 @@ type fileConfig struct {
 	EnableHTTPS                       *bool   `json:"enable_https"`
 	TLSCertFile                       *string `json:"tls_cert_file"`
 	TLSKeyFile                        *string `json:"tls_key_file"`
+	TrustedSubnet                     *string `json:"trusted_subnet"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -79,6 +82,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("EnableHTTPS: %t\n", c.EnableHTTPS)
 	fmt.Printf("TLSCertFile: %s\n", c.TLSCertFile)
 	fmt.Printf("TLSKeyFile: %s\n", c.TLSKeyFile)
+	fmt.Printf("TrustedSubnet: %s\n", c.TrustedSubnet)
 	fmt.Printf("Config: %s\n", c.Config)
 }
 
@@ -141,6 +145,12 @@ func InitConfig() (*Config, error) {
 
 	if cfg.RandomStringMaxLength < cfg.RandomStringLength {
 		errs = append(errs, errors.New("random string max length must be greater than or equal to random string length"))
+	}
+
+	if ts := strings.TrimSpace(cfg.TrustedSubnet); ts != "" {
+		if _, _, err := net.ParseCIDR(ts); err != nil {
+			errs = append(errs, fmt.Errorf("trusted_subnet: %w", err))
+		}
 	}
 
 	return &cfg, errors.Join(errs...)
@@ -233,6 +243,10 @@ func applyEnvToConfig(config *Config, skipConfigFromEnv bool) (*Config, error) {
 		config.TLSKeyFile = keyFile
 	}
 
+	if trustedSubnet, present := os.LookupEnv("TRUSTED_SUBNET"); present {
+		config.TrustedSubnet = trustedSubnet
+	}
+
 	if !skipConfigFromEnv {
 		if configFile, present := os.LookupEnv("CONFIG"); present {
 			config.Config = strings.TrimSpace(configFile)
@@ -259,7 +273,7 @@ func parseFlags(args []string) (*Config, *flag.FlagSet, error) {
 
 	flagSet.IntVarP(&config.RandomStringLength, "random-length", "l", 6, "random string length")
 	flagSet.IntVarP(&config.RandomStringMaxLength, "random-max-length", "m", 255, "random string max length")
-	flagSet.IntVarP(&config.RandomStringMaxGenerationAttempts, "random-attempts", "t", 1000, "max generation attempts")
+	flagSet.IntVar(&config.RandomStringMaxGenerationAttempts, "random-attempts", 1000, "max generation attempts")
 
 	flagSet.StringVarP(&config.LogLevel, "log-level", "e", "info", "log level")
 
@@ -281,6 +295,8 @@ func parseFlags(args []string) (*Config, *flag.FlagSet, error) {
 	flagSet.FuncP("string", "x", "unique random string options", parseRandomString(&config))
 
 	flagSet.StringVarP(&config.Config, "config", "c", getDefaultConfigFile(), "config file")
+
+	flagSet.StringVarP(&config.TrustedSubnet, "trusted-subnet", "t", "", "trusted CIDR for GET /api/internal/stats (X-Real-IP)")
 
 	err := flagSet.Parse(args)
 	if err != nil {
@@ -308,6 +324,7 @@ func defaultConfig() Config {
 		EnableHTTPS:                       false,
 		TLSCertFile:                       getDefaultTLSCertFile(),
 		TLSKeyFile:                        getDefaultTLSKeyFile(),
+		TrustedSubnet:                     "",
 		Config:                            "",
 	}
 }
@@ -381,6 +398,9 @@ func mergeConfigFromFile(cfg *Config, path string) error {
 	if fc.TLSKeyFile != nil {
 		cfg.TLSKeyFile = *fc.TLSKeyFile
 	}
+	if fc.TrustedSubnet != nil {
+		cfg.TrustedSubnet = *fc.TrustedSubnet
+	}
 
 	return nil
 }
@@ -433,6 +453,9 @@ func applyExplicitFlags(dst *Config, src *Config, fs *flag.FlagSet) {
 	}
 	if fs.Changed("tls-key-file") {
 		dst.TLSKeyFile = src.TLSKeyFile
+	}
+	if fs.Changed("trusted-subnet") {
+		dst.TrustedSubnet = src.TrustedSubnet
 	}
 	if fs.Changed("address") {
 		dst.Host = src.Host

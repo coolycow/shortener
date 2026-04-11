@@ -16,6 +16,7 @@ import (
 type DoubleMapsRepository struct {
 	keyToOriginal map[string]string
 	originalToKey map[string]string
+	userIDs       map[string]struct{}
 	mutex         sync.RWMutex
 	jsonStorage   *JSONStorage
 }
@@ -217,6 +218,14 @@ func (r *DoubleMapsRepository) GetSize(_ context.Context) int {
 	return len(r.keyToOriginal)
 }
 
+// GetUsersCount возвращает число пользователей, созданных через CreateUser.
+func (r *DoubleMapsRepository) GetUsersCount(_ context.Context) int {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return len(r.userIDs)
+}
+
 // Close закрывает хранилище
 func (r *DoubleMapsRepository) Close() error {
 	if r.jsonStorage != nil {
@@ -235,10 +244,22 @@ func (r *DoubleMapsRepository) GetUser(_ context.Context, userID string) (model.
 	return model.User{ID: userID}, nil
 }
 
+// CreateUser создаёт нового пользователя
 func (r *DoubleMapsRepository) CreateUser(_ context.Context) (model.User, error) {
-	return model.User{ID: uuid.New().String()}, nil
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if r.userIDs == nil {
+		r.userIDs = make(map[string]struct{})
+	}
+
+	id := uuid.New().String()
+	r.userIDs[id] = struct{}{}
+
+	return model.User{ID: id}, nil
 }
 
+// DeleteManyURLs удаляет множества URL по ключам
 func (r *DoubleMapsRepository) DeleteManyURLs(ctx context.Context, userID string, keys []string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()

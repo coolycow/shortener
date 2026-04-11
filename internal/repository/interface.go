@@ -20,6 +20,7 @@ type URLRepository interface {
 
 	IsKeyExists(ctx context.Context, key string) bool
 	GetSize(ctx context.Context) int
+	GetUsersCount(ctx context.Context) int
 
 	Close() error
 	Ping(ctx context.Context) error

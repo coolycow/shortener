@@ -1,6 +1,9 @@
 package router
 
 import (
+	"net"
+	"strings"
+
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/handler"
 	"github.com/coolycow/shortener/internal/middleware"
@@ -10,6 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// parseTrustedSubnet парсит строку CIDR в структуру net.IPNet
+func parseTrustedSubnet(cidr string) (*net.IPNet, error) {
+	cidr = strings.TrimSpace(cidr)
+	if cidr == "" {
+		return nil, nil
+	}
+
+	_, ipNet, err := net.ParseCIDR(cidr)
+	return ipNet, err
+}
+
+// setupURLRoutes настраивает маршруты для URL-сервиса
 func setupURLRoutes(
 	r *gin.Engine,
 	cfg *config.Config,
@@ -19,7 +34,14 @@ func setupURLRoutes(
 	srv := service.NewURLService(cfg, repo)
 	cookieService := service.NewUserService(cfg, repo)
 
+	// Парсим trusted subnet
+	trusted, err := parseTrustedSubnet(cfg.TrustedSubnet)
+	if err != nil {
+		trusted = nil
+	}
+
 	r.GET("/ping", handler.PingHandler(srv))
+	r.GET("/api/internal/stats", handler.GetAPIInternalStatsHandler(repo, trusted))
 
 	// Группа маршрутов с опциональной аутентификацией
 	authGroup := r.Group("/")
