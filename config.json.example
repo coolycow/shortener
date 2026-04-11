@@ -1,0 +1,19 @@
+{
+    "host": "localhost",
+    "port": 8085,
+    "base_url": "http://localhost",
+    "random_string_length": 6,
+    "random_string_max_length": 255,
+    "random_string_max_generation_attempts": 1000,
+    "log_level": "info",
+    "file_storage_path": "/path/to/file.db",
+    "database_dsn": "",
+    "run_migrations": false,
+    "secret_key": "shortener_secret_key",
+    "audit_file": "",
+    "audit_url": "",
+    "enable_https": true,
+    "tls_cert_file": "server.crt",
+    "tls_key_file": "server.key",
+    "config": "config.json"
+} 

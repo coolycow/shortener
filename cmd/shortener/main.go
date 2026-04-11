@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/logger"
@@ -87,10 +93,37 @@ func main() {
 	serverAddress := cfg.GetServerAddress()
 	logger.Log.Info("Running server ", zap.String("address", serverAddress))
 
-	err = r.Run(serverAddress)
+	// Инициализируем сервер
+	srv := &http.Server{
+		Addr:    serverAddress,
+		Handler: r,
+	}
 
-	// Если сервер не стартовал - фатальная ошибка
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Запускаем сервер
+	go func() {
+		var serveErr error
+		if cfg.EnableHTTPS {
+			serveErr = srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+		} else {
+			serveErr = srv.ListenAndServe()
+		}
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			logger.Log.Fatal("server error", zap.Error(serveErr))
+		}
+	}()
+
+	// Ожидаем сигнал завершения
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	sig := <-quit
+	logger.Log.Info("shutdown signal received", zap.String("signal", sig.String()))
+
+	// Создаем контекст для завершения работы сервера
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Завершаем работу сервера
+	if err = srv.Shutdown(shutdownCtx); err != nil {
+		logger.Log.Error("graceful shutdown failed", zap.Error(err))
 	}
 }
