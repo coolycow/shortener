@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/coolycow/shortener/internal/config"
 	"github.com/coolycow/shortener/internal/model"
@@ -21,6 +22,9 @@ type UserService interface {
 	GetUser(ctx context.Context, userID string) (model.User, error)
 	CreateUser(ctx context.Context) (model.User, error)
 	GetUserIDFromCookie(cookie *http.Cookie) (string, error)
+
+	// GetUserIDFromAuthToken — то же значение, что и cookie auth (metadata authorization / Bearer).
+	GetUserIDFromAuthToken(token string) (string, error)
 
 	GetCookieValueByUser(user model.User) (string, error)
 	GetCookieValueByUserID(userID string) (string, error)
@@ -64,7 +68,19 @@ func (s *userService) CreateUser(ctx context.Context) (model.User, error) {
 
 // GetUserIDFromCookie достаёт UserID из переданной куки
 func (s *userService) GetUserIDFromCookie(cookie *http.Cookie) (string, error) {
-	cookieValue := cookie.Value
+	return s.GetUserIDFromAuthToken(cookie.Value)
+}
+
+// GetUserIDFromAuthToken декодирует hex-токен (gRPC metadata authorization).
+func (s *userService) GetUserIDFromAuthToken(token string) (string, error) {
+	// Убираем пробелы и префикс "bearer "
+	token = strings.TrimSpace(token)
+	if len(token) > 6 && strings.EqualFold(token[:7], "bearer ") {
+		token = strings.TrimSpace(token[7:])
+	}
+
+	// Сохраняем значение токена
+	cookieValue := token
 
 	// Декодируем hex
 	data, err := hex.DecodeString(cookieValue)

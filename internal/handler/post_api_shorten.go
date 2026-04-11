@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/coolycow/shortener/internal/error"
@@ -12,12 +11,13 @@ import (
 	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/service"
+	"github.com/coolycow/shortener/internal/shortener"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 // PostAPIShortenHandler возвращает обработчик POST /api/shorten — сокращение URL (JSON: {"url": "..."}).
-func PostAPIShortenHandler(service service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
+func PostAPIShortenHandler(urlSvc service.URLService, auditNotifier *audit.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, что тип контента - application/json
 		contentType := c.GetHeader("Content-Type")
@@ -34,33 +34,18 @@ func PostAPIShortenHandler(service service.URLService, auditNotifier *audit.Noti
 		var req model.APIShortenRequest
 		dec := json.NewDecoder(c.Request.Body)
 
+		// Если не удалось декодировать тело запроса, отправляем 400 Bad Request
 		if err := dec.Decode(&req); err != nil {
 			logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
 			_ = c.Error(err)
 			return
 		}
 
-		// Извлекаем строку из тела запроса и проверяем, что она не пуста
-		trimURL := strings.TrimSpace(req.URL)
-
-		if trimURL == "" {
-			logger.Log.Debug("trim URL is empty")
-			_ = c.Error(error.CustomError{
-				Message:    "Empty URL",
-				StatusCode: http.StatusBadRequest,
-			})
-			return
-		}
-
-		// Парсим URL из строки (фактически проверяем, что это действительно URL)
-		validURL, err := url.ParseRequestURI(trimURL)
-
+		// Нормализуем URL
+		normalized, err := shortener.NormalizeShortenInput(req.URL)
 		if err != nil {
-			logger.Log.Debug("invalid URL", zap.Error(err))
-			_ = c.Error(error.CustomError{
-				Message:    "Invalid URL",
-				StatusCode: http.StatusBadRequest,
-			})
+			logger.Log.Debug("normalize shorten input", zap.Error(err))
+			_ = c.Error(err)
 			return
 		}
 
@@ -74,24 +59,22 @@ func PostAPIShortenHandler(service service.URLService, auditNotifier *audit.Noti
 			return
 		}
 
-		shortURL, err := service.CreateShortURL(c.Request.Context(), userID, validURL.String())
-
+		// Создаём короткую ссылку
+		shortURL, err := shortener.Shorten(c.Request.Context(), urlSvc, auditNotifier, userID, normalized)
 		if err != nil {
 			logger.Log.Debug("cannot create short URL", zap.Error(err))
 			_ = c.Error(err)
 			return
 		}
 
+		// Формируем ответ
 		logger.Log.Debug("create short url", zap.String("url", shortURL))
 
 		resp := model.APIShortenResponse{
 			Result: shortURL,
 		}
 
+		// Отправляем ответ
 		c.JSON(http.StatusCreated, resp)
-
-		// Отправляем событие аудита
-		event := audit.NewEvent(audit.ActionShorten, userID, validURL.String())
-		auditNotifier.Notify(event)
 	}
 }

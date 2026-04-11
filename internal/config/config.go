@@ -34,6 +34,8 @@ type Config struct {
 	TLSKeyFile                        string `env:"TLS_KEY_FILE" json:"tls_key_file,omitempty"`
 	TrustedSubnet                     string `env:"TRUSTED_SUBNET" json:"trusted_subnet,omitempty"`
 	Config                            string `env:"CONFIG" json:"config,omitempty"`
+	// GrpcPort — порт gRPC; 0 означает «HTTP-порт + 1» (см. GetGRPCServerAddress).
+	GrpcPort int `env:"GRPC_PORT" json:"grpc_port,omitempty"`
 }
 
 // fileConfig — JSON-файл; указатели задают поля, явно присутствующие в файле.
@@ -57,11 +59,25 @@ type fileConfig struct {
 	TLSCertFile                       *string `json:"tls_cert_file"`
 	TLSKeyFile                        *string `json:"tls_key_file"`
 	TrustedSubnet                     *string `json:"trusted_subnet"`
+	GrpcPort                          *int    `json:"grpc_port"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
 func (c *Config) GetServerAddress() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+// effectiveGRPCPort возвращает порт gRPC: явный GrpcPort или Port+1 при GrpcPort == 0.
+func (c *Config) effectiveGRPCPort() int {
+	if c.GrpcPort == 0 {
+		return c.Port + 1
+	}
+	return c.GrpcPort
+}
+
+// GetGRPCServerAddress — адрес прослушивания gRPC (тот же Host, TLS-флаги те же, что у HTTP).
+func (c *Config) GetGRPCServerAddress() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.effectiveGRPCPort())
 }
 
 // PrintConfig выводит настройки в консоль
@@ -84,6 +100,7 @@ func (c *Config) PrintConfig() {
 	fmt.Printf("TLSKeyFile: %s\n", c.TLSKeyFile)
 	fmt.Printf("TrustedSubnet: %s\n", c.TrustedSubnet)
 	fmt.Printf("Config: %s\n", c.Config)
+	fmt.Printf("GrpcPort (effective): %d\n", c.effectiveGRPCPort())
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался.
@@ -153,6 +170,14 @@ func InitConfig() (*Config, error) {
 		}
 	}
 
+	if cfg.effectiveGRPCPort() == cfg.Port {
+		errs = append(errs, errors.New("grpc port must not equal http port"))
+	}
+
+	if cfg.effectiveGRPCPort() <= 0 || cfg.effectiveGRPCPort() > 65535 {
+		errs = append(errs, errors.New("grpc port must be between 1 and 65535"))
+	}
+
 	return &cfg, errors.Join(errs...)
 }
 
@@ -170,6 +195,11 @@ func applyEnvToConfig(config *Config, skipConfigFromEnv bool) (*Config, error) {
 
 	if err := parseIntFromEnv(config, "PORT",
 		func(c *Config, v int) { c.Port = v }); err != nil {
+		return nil, err
+	}
+
+	if err := parseIntFromEnv(config, "GRPC_PORT",
+		func(c *Config, v int) { c.GrpcPort = v }); err != nil {
 		return nil, err
 	}
 
@@ -269,6 +299,7 @@ func parseFlags(args []string) (*Config, *flag.FlagSet, error) {
 
 	flagSet.StringVarP(&config.Host, "host", "h", "127.0.0.1", "server host")
 	flagSet.IntVarP(&config.Port, "port", "p", 8080, "server port")
+	flagSet.IntVar(&config.GrpcPort, "grpc-port", 0, "gRPC server port (0 = http port + 1)")
 	flagSet.StringVarP(&config.BaseURL, "base", "b", "http://127.0.0.1:8080", "base url")
 
 	flagSet.IntVarP(&config.RandomStringLength, "random-length", "l", 6, "random string length")
@@ -326,6 +357,7 @@ func defaultConfig() Config {
 		TLSKeyFile:                        getDefaultTLSKeyFile(),
 		TrustedSubnet:                     "",
 		Config:                            "",
+		GrpcPort:                          0,
 	}
 }
 
@@ -401,6 +433,9 @@ func mergeConfigFromFile(cfg *Config, path string) error {
 	if fc.TrustedSubnet != nil {
 		cfg.TrustedSubnet = *fc.TrustedSubnet
 	}
+	if fc.GrpcPort != nil {
+		cfg.GrpcPort = *fc.GrpcPort
+	}
 
 	return nil
 }
@@ -411,6 +446,9 @@ func applyExplicitFlags(dst *Config, src *Config, fs *flag.FlagSet) {
 	}
 	if fs.Changed("port") {
 		dst.Port = src.Port
+	}
+	if fs.Changed("grpc-port") {
+		dst.GrpcPort = src.GrpcPort
 	}
 	if fs.Changed("base") {
 		dst.BaseURL = src.BaseURL
