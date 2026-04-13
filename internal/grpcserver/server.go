@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Server реализует shortenerpb.ShortenerServiceServer, вызывая пакет shortener.
@@ -75,7 +74,7 @@ func (s *Server) ExpandURL(ctx context.Context, req *shortenerpb.URLExpandReques
 }
 
 // ListUserURLs — аналог GET /api/user/urls; пустой список допустим (без HTTP 204).
-func (s *Server) ListUserURLs(ctx context.Context, _ *emptypb.Empty) (*shortenerpb.UserURLsResponse, error) {
+func (s *Server) ListUserURLs(ctx context.Context, _ *shortenerpb.ListUserURLsRequest) (*shortenerpb.UserURLsResponse, error) {
 	userID, ok := shortener.UserIDFromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Internal, "user id missing in context")

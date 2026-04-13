@@ -1,8 +1,0 @@
-// Well-known type google.protobuf.Empty (minimal copy for local protoc -I).
-syntax = "proto3";
-
-package google.protobuf;
-
-option go_package = "google.golang.org/protobuf/types/known/emptypb;emptypb";
-
-message Empty {}

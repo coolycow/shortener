@@ -4,18 +4,19 @@ package shortener;
 
 option go_package = "github.com/coolycow/shortener/internal/proto/shortenerpb;shortenerpb";
 
-// Генерация Go (Opaque API): protoc -Iproto -Ithird_party/protobuf/src
+// Генерация Go (Opaque API): protoc -Iproto
 //   --go_out=. --go_opt=module=github.com/coolycow/shortener --go_opt=default_api_level=API_OPAQUE
 //   --go-grpc_out=. --go-grpc_opt=module=github.com/coolycow/shortener proto/shortener.proto
-
-import "google/protobuf/empty.proto";
 
 // ShortenerService mirrors POST /api/shorten, GET /:id, GET /api/user/urls.
 service ShortenerService {
   rpc ShortenURL (URLShortenRequest) returns (URLShortenResponse);
   rpc ExpandURL (URLExpandRequest) returns (URLExpandResponse);
-  rpc ListUserURLs (google.protobuf.Empty) returns (UserURLsResponse);
+  rpc ListUserURLs (ListUserURLsRequest) returns (UserURLsResponse);
 }
+
+// ListUserURLsRequest — пустое тело запроса ListUserURLs; поля можно добавлять без смены имени типа (в отличие от google.protobuf.Empty).
+message ListUserURLsRequest {}
 
 message URLShortenRequest {
   string url = 1;
