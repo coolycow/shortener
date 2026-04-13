@@ -41,7 +41,10 @@ func setupURLRoutes(
 	}
 
 	r.GET("/ping", handler.PingHandler(srv))
-	r.GET("/api/internal/stats", handler.GetAPIInternalStatsHandler(repo, trusted))
+
+	// Маршрут для получения статистики
+	// Использует middleware.TrustedSubnetInternalStats для ограничения доступа по trusted subnet
+	r.GET("/api/internal/stats", middleware.TrustedSubnetInternalStats(trusted), handler.GetAPIInternalStatsHandler(repo))
 
 	// Группа маршрутов с опциональной аутентификацией
 	authGroup := r.Group("/")

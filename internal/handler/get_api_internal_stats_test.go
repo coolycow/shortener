@@ -85,7 +85,7 @@ func TestGetAPIInternalStatsHandler(t *testing.T) {
 			router := gin.New()
 			router.Use(middleware.RequestLogger())
 			router.Use(middleware.ErrorHandler())
-			router.GET("/api/internal/stats", GetAPIInternalStatsHandler(repo, tt.trusted))
+			router.GET("/api/internal/stats", middleware.TrustedSubnetInternalStats(tt.trusted), GetAPIInternalStatsHandler(repo))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/internal/stats", nil)
 			if tt.realIP != "" {
