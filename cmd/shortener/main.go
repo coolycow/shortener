@@ -51,13 +51,13 @@ func main() {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
 
-	// Выводим настройки в консоль для наглядности
-	cfg.PrintConfig()
-
 	// Инициализируем логер
 	if err = logger.Initialize(cfg.LogLevel); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
+
+	// Выводим настройки в лог
+	cfg.PrintConfig()
 
 	// Инициализируем репозиторий
 	var repo repository.URLRepository

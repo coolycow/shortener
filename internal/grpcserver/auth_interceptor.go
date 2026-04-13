@@ -4,8 +4,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/service"
 	"github.com/coolycow/shortener/internal/shortener"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -18,23 +20,35 @@ const metadataSetAuthorization = "set-authorization"
 // AuthUnaryServerInterceptor подставляет userID в контекст по правилам OptionalAuth (HTTP).
 func AuthUnaryServerInterceptor(users service.UserService) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		md, _ := metadata.FromIncomingContext(ctx)
+		// Получаем metadata из контекста
+		md, ok := metadata.FromIncomingContext(ctx)
+
+		// Если metadata нет, создаём пустой metadata
+		if !ok {
+			md = metadata.MD{}
+		}
+
+		// Получаем authorization из metadata
 		auth := ""
 		if v := md.Get("authorization"); len(v) > 0 {
 			auth = v[0]
 		}
 
+		// Решаем пользователя и токен
 		userID, newToken, err := resolveGRPCUser(ctx, users, auth)
 		if err != nil {
 			return nil, err
 		}
 
+		// Если токен изменился, устанавливаем его в metadata
 		if newToken != "" {
 			if herr := grpc.SetHeader(ctx, metadata.Pairs(metadataSetAuthorization, newToken)); herr != nil {
-				return nil, status.Errorf(codes.Internal, "set header: %v", herr)
+				logger.Log.Error("grpc auth: set header", zap.Error(herr))
+				return nil, status.Error(codes.Internal, "internal error")
 			}
 		}
 
+		// Кладём userID в контекст
 		ctx = shortener.ContextWithUserID(ctx, userID)
 		return handler(ctx, req)
 	}
@@ -46,19 +60,24 @@ func resolveGRPCUser(ctx context.Context, users service.UserService, authHeader 
 
 	userID, decErr := users.GetUserIDFromAuthToken(authHeader)
 	if decErr != nil {
+		// Если токен невалидный, создаём нового пользователя
 		u, cerr := users.CreateUser(ctx)
 		if cerr != nil {
-			return "", "", status.Errorf(codes.Internal, "create user: %v", cerr)
+			logger.Log.Error("grpc auth: create user", zap.Error(cerr))
+			return "", "", status.Error(codes.Internal, "internal error")
 		}
 
+		// Получаем токен для нового пользователя
 		tok, terr := users.GetCookieValueByUser(u)
 		if terr != nil {
-			return "", "", status.Errorf(codes.Internal, "issue token: %v", terr)
+			logger.Log.Error("grpc auth: issue token", zap.Error(terr))
+			return "", "", status.Error(codes.Internal, "internal error")
 		}
 
 		return u.ID, tok, nil
 	}
 
+	// Если пользователь не найден, возвращаем ошибку Unauthenticated
 	if _, gerr := users.GetUser(ctx, userID); gerr != nil {
 		return "", "", status.Error(codes.Unauthenticated, "user not found")
 	}
