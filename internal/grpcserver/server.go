@@ -51,7 +51,7 @@ func (s *Server) ShortenURL(ctx context.Context, req *shortenerpb.URLShortenRequ
 		return nil, grpcError(err)
 	}
 
-	return &shortenerpb.URLShortenResponse{Result: result}, nil
+	return shortenerpb.URLShortenResponse_builder{Result: result}.Build(), nil
 }
 
 // ExpandURL — аналог GET /:id; при удалённой ссылке — FailedPrecondition (как 410 Gone).
@@ -70,7 +70,8 @@ func (s *Server) ExpandURL(ctx context.Context, req *shortenerpb.URLExpandReques
 		return nil, status.Error(codes.FailedPrecondition, "URL is gone")
 	}
 
-	return &shortenerpb.URLExpandResponse{Result: orig}, nil
+	// Формируем ответ
+	return shortenerpb.URLExpandResponse_builder{Result: orig}.Build(), nil
 }
 
 // ListUserURLs — аналог GET /api/user/urls; пустой список допустим (без HTTP 204).
@@ -85,13 +86,15 @@ func (s *Server) ListUserURLs(ctx context.Context, _ *emptypb.Empty) (*shortener
 		return nil, grpcError(err)
 	}
 
+	// Формируем список ссылок
 	out := make([]*shortenerpb.URLData, 0, len(items))
 	for i := range items {
-		out = append(out, &shortenerpb.URLData{
+		out = append(out, shortenerpb.URLData_builder{
 			ShortUrl:    items[i].ShortURL,
 			OriginalUrl: items[i].OriginalURL,
-		})
+		}.Build())
 	}
 
-	return &shortenerpb.UserURLsResponse{Url: out}, nil
+	// Формируем ответ
+	return shortenerpb.UserURLsResponse_builder{Url: out}.Build(), nil
 }

@@ -53,9 +53,11 @@ func TestShortenURL_InMemory(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
+	// Создаём клиента
 	client := shortenerpb.NewShortenerServiceClient(conn)
-	// Без metadata authorization интерцептор создаёт нового пользователя (как HTTP без cookie).
-	resp, err := client.ShortenURL(ctx, &shortenerpb.URLShortenRequest{Url: "https://example.com/path"})
+
+	// Создаём запрос и отправляем его
+	resp, err := client.ShortenURL(ctx, shortenerpb.URLShortenRequest_builder{Url: "https://example.com/path"}.Build())
 	require.NoError(t, err)
 	require.Contains(t, resp.GetResult(), "http://127.0.0.1:8080/")
 }

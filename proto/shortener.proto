@@ -4,6 +4,10 @@ package shortener;
 
 option go_package = "github.com/coolycow/shortener/internal/proto/shortenerpb;shortenerpb";
 
+// Генерация Go (Opaque API): protoc -Iproto -Ithird_party/protobuf/src
+//   --go_out=. --go_opt=module=github.com/coolycow/shortener --go_opt=default_api_level=API_OPAQUE
+//   --go-grpc_out=. --go-grpc_opt=module=github.com/coolycow/shortener proto/shortener.proto
+
 import "google/protobuf/empty.proto";
 
 // ShortenerService mirrors POST /api/shorten, GET /:id, GET /api/user/urls.
