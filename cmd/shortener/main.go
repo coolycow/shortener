@@ -5,18 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/coolycow/shortener/internal/config"
+	"github.com/coolycow/shortener/internal/grpcserver"
 	"github.com/coolycow/shortener/internal/logger"
 	"github.com/coolycow/shortener/internal/observer/audit"
 	"github.com/coolycow/shortener/internal/repository"
 	"github.com/coolycow/shortener/internal/router"
+	"github.com/coolycow/shortener/internal/service"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -45,13 +51,13 @@ func main() {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
 
-	// Выводим настройки в консоль для наглядности
-	cfg.PrintConfig()
-
 	// Инициализируем логер
 	if err = logger.Initialize(cfg.LogLevel); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
+
+	// Выводим настройки в лог
+	cfg.PrintConfig()
 
 	// Инициализируем репозиторий
 	var repo repository.URLRepository
@@ -89,6 +95,10 @@ func main() {
 	// Инициализируем роутер
 	r := router.NewRouter(cfg, repo, auditNotifier)
 
+	// Сервисы для gRPC совпадают по смыслу с теми, что создаёт router (общий repo).
+	urlSvc := service.NewURLService(cfg, repo)
+	userSvc := service.NewUserService(cfg, repo)
+
 	// Получаем адрес сервера из настроек и запускаем сервер
 	serverAddress := cfg.GetServerAddress()
 	logger.Log.Info("Running server ", zap.String("address", serverAddress))
@@ -112,6 +122,34 @@ func main() {
 		}
 	}()
 
+	// gRPC: тот же Host, отдельный порт (GrpcPort или Port+1), TLS при EnableHTTPS.
+	grpcOpts := []grpc.ServerOption{
+		grpc.UnaryInterceptor(grpcserver.AuthUnaryServerInterceptor(userSvc)),
+	}
+	if cfg.EnableHTTPS {
+		creds, tlsErr := credentials.NewServerTLSFromFile(cfg.TLSCertFile, cfg.TLSKeyFile)
+		if tlsErr != nil {
+			log.Fatalf("Failed to load gRPC TLS credentials: %v", tlsErr)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+
+	grpcSrv := grpc.NewServer(grpcOpts...)
+	grpcserver.NewServer(urlSvc, auditNotifier).Register(grpcSrv)
+
+	grpcLis, err := net.Listen("tcp", cfg.GetGRPCServerAddress())
+	if err != nil {
+		log.Fatalf("Failed to listen gRPC: %v", err)
+	}
+
+	logger.Log.Info("Running gRPC server", zap.String("address", cfg.GetGRPCServerAddress()))
+
+	go func() {
+		if serveErr := grpcSrv.Serve(grpcLis); serveErr != nil {
+			logger.Log.Fatal("gRPC server error", zap.Error(serveErr))
+		}
+	}()
+
 	// Ожидаем сигнал завершения
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -122,8 +160,21 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Завершаем работу сервера
-	if err = srv.Shutdown(shutdownCtx); err != nil {
-		logger.Log.Error("graceful shutdown failed", zap.Error(err))
-	}
+	// Параллельно завершаем HTTP и gRPC.
+	var shutdownWg sync.WaitGroup
+	shutdownWg.Add(2)
+
+	go func() {
+		defer shutdownWg.Done()
+		grpcSrv.GracefulStop()
+	}()
+
+	go func() {
+		defer shutdownWg.Done()
+		if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
+			logger.Log.Error("graceful shutdown failed", zap.Error(shutdownErr))
+		}
+	}()
+
+	shutdownWg.Wait()
 }

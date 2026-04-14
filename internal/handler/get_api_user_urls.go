@@ -5,15 +5,18 @@ import (
 
 	"github.com/coolycow/shortener/internal/error"
 	"github.com/coolycow/shortener/internal/middleware"
-	"github.com/coolycow/shortener/internal/model"
 	"github.com/coolycow/shortener/internal/service"
+	"github.com/coolycow/shortener/internal/shortener"
 	"github.com/gin-gonic/gin"
 )
 
 // GetAPIUserURLs возвращает обработчик GET /api/user/urls — список всех сокращённых URL текущего пользователя.
-func GetAPIUserURLs(service service.URLService) gin.HandlerFunc {
+func GetAPIUserURLs(urlSvc service.URLService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Получаем ID пользователя из запроса
 		userID, err := middleware.GetUserIDFromGinContext(c)
+
+		// Если не удалось получить ID пользователя, отправляем 500 Internal Server Error
 		if err != nil {
 			_ = c.Error(error.CustomError{
 				Message:    err.Error(),
@@ -22,27 +25,20 @@ func GetAPIUserURLs(service service.URLService) gin.HandlerFunc {
 			return
 		}
 
-		// Получаем исходный URL по ключу из сервиса
-		shortURLs, err := service.GetManyShortURLs(c.Request.Context(), userID)
-
-		// Сервис возвращает CustomError
+		// Получаем список ссылок для текущего пользователя
+		responses, err := shortener.ListURLs(c.Request.Context(), urlSvc, userID)
 		if err != nil {
 			_ = c.Error(err)
 			return
 		}
 
-		if len(shortURLs) == 0 {
+		// Если список ссылок пуст, отправляем 204 No Content
+		if len(responses) == 0 {
 			c.JSON(http.StatusNoContent, nil)
 			return
 		}
 
-		responses := make([]model.APIUserURLsResponse, 0, len(shortURLs))
-
-		for _, u := range shortURLs {
-			responses = append(responses, u.ToAPIUserURLsResponse(service.GetBaseURL()))
-		}
-
-		// Формируем ответ
+		// Отправляем список ссылок в формате JSON
 		c.JSON(http.StatusOK, responses)
 	}
 }

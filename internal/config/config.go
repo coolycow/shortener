@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	flag "github.com/spf13/pflag"
+
+	"github.com/coolycow/shortener/internal/logger"
 )
 
 // Config Структура для хранения конфигурации, задаются соответствия ENV
@@ -31,7 +34,10 @@ type Config struct {
 	EnableHTTPS                       bool   `env:"ENABLE_HTTPS" json:"enable_https,omitempty"`
 	TLSCertFile                       string `env:"TLS_CERT_FILE" json:"tls_cert_file,omitempty"`
 	TLSKeyFile                        string `env:"TLS_KEY_FILE" json:"tls_key_file,omitempty"`
+	TrustedSubnet                     string `env:"TRUSTED_SUBNET" json:"trusted_subnet,omitempty"`
 	Config                            string `env:"CONFIG" json:"config,omitempty"`
+	// GrpcPort — порт gRPC; 0 в InitConfig заменяется на первый свободный порт начиная с Port+1.
+	GrpcPort int `env:"GRPC_PORT" json:"grpc_port,omitempty"`
 }
 
 // fileConfig — JSON-файл; указатели задают поля, явно присутствующие в файле.
@@ -54,6 +60,8 @@ type fileConfig struct {
 	EnableHTTPS                       *bool   `json:"enable_https"`
 	TLSCertFile                       *string `json:"tls_cert_file"`
 	TLSKeyFile                        *string `json:"tls_key_file"`
+	TrustedSubnet                     *string `json:"trusted_subnet"`
+	GrpcPort                          *int    `json:"grpc_port"`
 }
 
 // GetServerAddress возвращает полный адрес сервера для его запуска
@@ -61,25 +69,56 @@ func (c *Config) GetServerAddress() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
-// PrintConfig выводит настройки в консоль
+// findAvailableTCPPort возвращает первый свободный TCP-порт на host, начиная с first (включительно).
+func findAvailableTCPPort(host string, first int) (int, error) {
+	// Проверяем, что первый порт валидный
+	if first < 1 || first > 65535 {
+		return 0, errors.New("invalid start port for grpc")
+	}
+
+	// Максимальное количество попыток найти свободный порт
+	const maxTries = 4096
+
+	// Ищем первый свободный порт
+	for offset := 0; offset < maxTries; offset++ {
+		p := first + offset
+		if p > 65535 {
+			break
+		}
+
+		// Проверяем, что порт свободный
+		ln, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(p)))
+		if err == nil {
+			_ = ln.Close()
+			return p, nil
+		}
+	}
+
+	// Если не нашли свободный порт, возвращаем ошибку
+	return 0, errors.New("no free tcp port in search range")
+}
+
+// GetGRPCServerAddress — адрес прослушивания gRPC (тот же Host, TLS-флаги те же, что у HTTP).
+func (c *Config) GetGRPCServerAddress() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.GrpcPort)
+}
+
+// PrintConfig записывает полный дамп настроек одной строкой в лог (вызывать после logger.Initialize).
 func (c *Config) PrintConfig() {
-	fmt.Printf("Host: %s\n", c.Host)
-	fmt.Printf("Port: %d\n", c.Port)
-	fmt.Printf("BaseURL: %s\n", c.BaseURL)
-	fmt.Printf("RandomStringLength: %d\n", c.RandomStringLength)
-	fmt.Printf("RandomStringMaxLength: %d\n", c.RandomStringMaxLength)
-	fmt.Printf("RandomStringMaxGenerationAttempts: %d\n", c.RandomStringMaxGenerationAttempts)
-	fmt.Printf("LogLevel: %s\n", c.LogLevel)
-	fmt.Printf("FileStoragePath: %s\n", c.FileStoragePath)
-	fmt.Printf("DatabaseDSN: %s\n", c.DatabaseDSN)
-	fmt.Printf("RunMigrations: %t\n", c.RunMigrations)
-	fmt.Printf("SecretKey: %s\n", c.SecretKey)
-	fmt.Printf("AuditFile: %s\n", c.AuditFile)
-	fmt.Printf("AuditURL: %s\n", c.AuditURL)
-	fmt.Printf("EnableHTTPS: %t\n", c.EnableHTTPS)
-	fmt.Printf("TLSCertFile: %s\n", c.TLSCertFile)
-	fmt.Printf("TLSKeyFile: %s\n", c.TLSKeyFile)
-	fmt.Printf("Config: %s\n", c.Config)
+	var b strings.Builder
+
+	// Формируем строку с настройками
+	fmt.Fprintf(&b, "config: Host=%s Port=%d GrpcPort=%d BaseURL=%s ", c.Host, c.Port, c.GrpcPort, c.BaseURL)
+	fmt.Fprintf(&b, "RandomStringLength=%d RandomStringMaxLength=%d RandomStringMaxGenerationAttempts=%d ",
+		c.RandomStringLength, c.RandomStringMaxLength, c.RandomStringMaxGenerationAttempts)
+	fmt.Fprintf(&b, "LogLevel=%s FileStoragePath=%s DatabaseDSN=%s RunMigrations=%t ",
+		c.LogLevel, c.FileStoragePath, c.DatabaseDSN, c.RunMigrations)
+	fmt.Fprintf(&b, "SecretKey=%s AuditFile=%s AuditURL=%s ", c.SecretKey, c.AuditFile, c.AuditURL)
+	fmt.Fprintf(&b, "EnableHTTPS=%t TLSCertFile=%s TLSKeyFile=%s TrustedSubnet=%s Config=%s",
+		c.EnableHTTPS, c.TLSCertFile, c.TLSKeyFile, c.TrustedSubnet, c.Config)
+
+	// Выводим настройки в лог
+	logger.Log.Info(b.String())
 }
 
 // InitConfig возвращает настройки и ошибку если парсинг аргументов не удался.
@@ -125,6 +164,16 @@ func InitConfig() (*Config, error) {
 
 	applyExplicitFlags(&cfg, flagCfg, fs)
 
+	// Если порт gRPC не установлен, находим первый свободный порт начиная с Port+1
+	if cfg.GrpcPort == 0 {
+		// Находим первый свободный порт
+		p, aerr := findAvailableTCPPort(cfg.Host, cfg.Port+1)
+		if aerr != nil {
+			return nil, fmt.Errorf("grpc listen port: %w", aerr)
+		}
+		cfg.GrpcPort = p
+	}
+
 	// Проверяем настройки на корректность
 	var errs []error
 	if cfg.RandomStringLength <= 0 || cfg.RandomStringLength > 255 {
@@ -141,6 +190,20 @@ func InitConfig() (*Config, error) {
 
 	if cfg.RandomStringMaxLength < cfg.RandomStringLength {
 		errs = append(errs, errors.New("random string max length must be greater than or equal to random string length"))
+	}
+
+	if ts := strings.TrimSpace(cfg.TrustedSubnet); ts != "" {
+		if _, _, err := net.ParseCIDR(ts); err != nil {
+			errs = append(errs, fmt.Errorf("trusted_subnet: %w", err))
+		}
+	}
+
+	if cfg.GrpcPort == cfg.Port {
+		errs = append(errs, errors.New("grpc port must not equal http port"))
+	}
+
+	if cfg.GrpcPort <= 0 || cfg.GrpcPort > 65535 {
+		errs = append(errs, errors.New("grpc port must be between 1 and 65535"))
 	}
 
 	return &cfg, errors.Join(errs...)
@@ -160,6 +223,11 @@ func applyEnvToConfig(config *Config, skipConfigFromEnv bool) (*Config, error) {
 
 	if err := parseIntFromEnv(config, "PORT",
 		func(c *Config, v int) { c.Port = v }); err != nil {
+		return nil, err
+	}
+
+	if err := parseIntFromEnv(config, "GRPC_PORT",
+		func(c *Config, v int) { c.GrpcPort = v }); err != nil {
 		return nil, err
 	}
 
@@ -233,6 +301,10 @@ func applyEnvToConfig(config *Config, skipConfigFromEnv bool) (*Config, error) {
 		config.TLSKeyFile = keyFile
 	}
 
+	if trustedSubnet, present := os.LookupEnv("TRUSTED_SUBNET"); present {
+		config.TrustedSubnet = trustedSubnet
+	}
+
 	if !skipConfigFromEnv {
 		if configFile, present := os.LookupEnv("CONFIG"); present {
 			config.Config = strings.TrimSpace(configFile)
@@ -255,11 +327,12 @@ func parseFlags(args []string) (*Config, *flag.FlagSet, error) {
 
 	flagSet.StringVarP(&config.Host, "host", "h", "127.0.0.1", "server host")
 	flagSet.IntVarP(&config.Port, "port", "p", 8080, "server port")
+	flagSet.IntVar(&config.GrpcPort, "grpc-port", 0, "gRPC server port (0 = first free from http port + 1)")
 	flagSet.StringVarP(&config.BaseURL, "base", "b", "http://127.0.0.1:8080", "base url")
 
 	flagSet.IntVarP(&config.RandomStringLength, "random-length", "l", 6, "random string length")
 	flagSet.IntVarP(&config.RandomStringMaxLength, "random-max-length", "m", 255, "random string max length")
-	flagSet.IntVarP(&config.RandomStringMaxGenerationAttempts, "random-attempts", "t", 1000, "max generation attempts")
+	flagSet.IntVar(&config.RandomStringMaxGenerationAttempts, "random-attempts", 1000, "max generation attempts")
 
 	flagSet.StringVarP(&config.LogLevel, "log-level", "e", "info", "log level")
 
@@ -281,6 +354,8 @@ func parseFlags(args []string) (*Config, *flag.FlagSet, error) {
 	flagSet.FuncP("string", "x", "unique random string options", parseRandomString(&config))
 
 	flagSet.StringVarP(&config.Config, "config", "c", getDefaultConfigFile(), "config file")
+
+	flagSet.StringVarP(&config.TrustedSubnet, "trusted-subnet", "t", "", "trusted CIDR for GET /api/internal/stats (X-Real-IP)")
 
 	err := flagSet.Parse(args)
 	if err != nil {
@@ -308,7 +383,9 @@ func defaultConfig() Config {
 		EnableHTTPS:                       false,
 		TLSCertFile:                       getDefaultTLSCertFile(),
 		TLSKeyFile:                        getDefaultTLSKeyFile(),
+		TrustedSubnet:                     "",
 		Config:                            "",
+		GrpcPort:                          0,
 	}
 }
 
@@ -381,6 +458,12 @@ func mergeConfigFromFile(cfg *Config, path string) error {
 	if fc.TLSKeyFile != nil {
 		cfg.TLSKeyFile = *fc.TLSKeyFile
 	}
+	if fc.TrustedSubnet != nil {
+		cfg.TrustedSubnet = *fc.TrustedSubnet
+	}
+	if fc.GrpcPort != nil {
+		cfg.GrpcPort = *fc.GrpcPort
+	}
 
 	return nil
 }
@@ -391,6 +474,9 @@ func applyExplicitFlags(dst *Config, src *Config, fs *flag.FlagSet) {
 	}
 	if fs.Changed("port") {
 		dst.Port = src.Port
+	}
+	if fs.Changed("grpc-port") {
+		dst.GrpcPort = src.GrpcPort
 	}
 	if fs.Changed("base") {
 		dst.BaseURL = src.BaseURL
@@ -433,6 +519,9 @@ func applyExplicitFlags(dst *Config, src *Config, fs *flag.FlagSet) {
 	}
 	if fs.Changed("tls-key-file") {
 		dst.TLSKeyFile = src.TLSKeyFile
+	}
+	if fs.Changed("trusted-subnet") {
+		dst.TrustedSubnet = src.TrustedSubnet
 	}
 	if fs.Changed("address") {
 		dst.Host = src.Host
